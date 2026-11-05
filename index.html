@@ -46,6 +46,11 @@
         .book strong { display: block; font-size: 14px; }
         .book small { display: block; margin-top: 4px; color: var(--muted); }
         .available { margin-left: auto; color: #08785f; font-size: 11px; white-space: nowrap; }
+        .school-list { display: grid; gap: 10px; }
+        .school-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px; border-radius: 12px; background: #f2f7ff; border: 1px solid #dfeeff; }
+        .school-item strong { font-size: 14px; }
+        .school-item small { color: var(--muted); display: block; margin-top: 3px; }
+        .tag { font-size: 11px; padding: 5px 8px; border-radius: 999px; background: #dff6e8; color: #0a6d4d; font-weight: 700; }
         .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: auto; padding-top: 18px; }
         .action-btn { padding: 13px 10px; border: 0; border-radius: 12px; font-weight: 700; cursor: pointer; transition: transform .12s; }
         .primary { background: var(--tg-theme-button-color, var(--blue)); color: var(--tg-theme-button-text-color, white); }
@@ -84,7 +89,7 @@
                 <button class="menu-item" type="button" onclick="showNotice('books')"><div class="menu-icon">📖</div><strong data-i18n="books">Kitoblar</strong><small data-i18n="booksDesc">Katalogni ko‘rish</small></button>
                 <button class="menu-item" type="button" onclick="document.getElementById('search-input').focus()"><div class="menu-icon">🔎</div><strong data-i18n="find">Qidirish</strong><small data-i18n="findDesc">Kitob topish</small></button>
                 <button class="menu-item" type="button" onclick="showNotice('favorites')"><div class="menu-icon">⭐</div><strong data-i18n="favorites">Sevimlilar</strong><small data-i18n="favoritesDesc">Saqlangan kitoblar</small></button>
-                <button class="menu-item" type="button" onclick="showNotice('profile')"><div class="menu-icon">👤</div><strong data-i18n="profile">Profil</strong><small data-i18n="profileDesc">Hisob ma’lumotlari</small></button>
+                <button class="menu-item" type="button" onclick="showNotice('school')"><div class="menu-icon">🎒</div><strong data-i18n="school">Maktab</strong><small data-i18n="schoolDesc">Darslar va materiallar</small></button>
             </section>
 
             <section class="panel">
@@ -92,6 +97,28 @@
                 <div class="book"><span class="cover">N</span><span><strong>Alisher Navoiy</strong><small>“Lison ut-Tayr”</small></span><span class="available" data-i18n="available">Mavjud</span></div>
                 <div class="book"><span class="cover">F</span><span><strong>F. Scott Fitzgerald</strong><small>“The Great Gatsby”</small></span><span class="available" data-i18n="available">Mavjud</span></div>
                 <div class="book"><span class="cover">S</span><span><strong data-i18n="authorSaid">Said Ahmad</strong><small>“Ufq”</small></span><span class="available" data-i18n="available">Mavjud</span></div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-heading"><h2 data-i18n="schoolSection">Maktab bo‘limi</h2><span class="count">4</span></div>
+                <div class="school-list">
+                    <div class="school-item">
+                        <div><strong data-i18n="schoolSchedule">Dars jadvali</strong><small data-i18n="scheduleText">Fanlar va mashg‘ulot vaqtlari</small></div>
+                        <span class="tag" data-i18n="newTag">Yangi</span>
+                    </div>
+                    <div class="school-item">
+                        <div><strong data-i18n="schoolLibrary">Maktab kutubxonasi</strong><small data-i18n="libraryText">Mavjud kitoblar va qo‘llanmalar</small></div>
+                        <span class="tag" data-i18n="popularTag">Mashhur</span>
+                    </div>
+                    <div class="school-item">
+                        <div><strong data-i18n="homework">Uy vazifalari</strong><small data-i18n="homeworkText">Topshirish va nazorat savollari</small></div>
+                        <span class="tag" data-i18n="todayTag">Bugun</span>
+                    </div>
+                    <div class="school-item">
+                        <div><strong data-i18n="schoolNews">Maktab yangiliklari</strong><small data-i18n="newsText">Tadbirlar va e’lonlar</small></div>
+                        <span class="tag" data-i18n="activeTag">Faol</span>
+                    </div>
+                </div>
             </section>
 
             <div class="actions">
@@ -106,16 +133,22 @@
             uz: {
                 brand: 'Kutubxona', greeting: 'Salom!', welcome: 'Bugun nima o‘qishni xohlaysiz?', changeLanguage: 'Tilni o‘zgartirish',
                 search: 'Kitob yoki muallifni qidiring...', books: 'Kitoblar', booksDesc: 'Katalogni ko‘rish', find: 'Qidirish', findDesc: 'Kitob topish',
-                favorites: 'Sevimlilar', favoritesDesc: 'Saqlangan kitoblar', profile: 'Profil', profileDesc: 'Hisob ma’lumotlari',
+                favorites: 'Sevimlilar', favoritesDesc: 'Saqlangan kitoblar', school: 'Maktab', schoolDesc: 'Darslar va materiallar',
                 recommendations: 'Tavsiya etilgan kitoblar', available: 'Mavjud', authorSaid: 'Said Ahmad', startReading: 'O‘qishni boshlash', close: 'Yopish',
-                noticeBooks: 'Kitoblar katalogi tez orada qo‘shiladi.', noticeFavorites: 'Saqlangan kitoblar hozircha yo‘q.', noticeProfile: 'Profil bo‘limi tez orada qo‘shiladi.'
+                schoolSection: 'Maktab bo‘limi', schoolSchedule: 'Dars jadvali', scheduleText: 'Fanlar va mashg‘ulot vaqtlari', schoolLibrary: 'Maktab kutubxonasi', libraryText: 'Mavjud kitoblar va qo‘llanmalar',
+                homework: 'Uy vazifalari', homeworkText: 'Topshirish va nazorat savollari', schoolNews: 'Maktab yangiliklari', newsText: 'Tadbirlar va e’lonlar',
+                newTag: 'Yangi', popularTag: 'Mashhur', todayTag: 'Bugun', activeTag: 'Faol',
+                noticeBooks: 'Kitoblar katalogi tez orada qo‘shiladi.', noticeFavorites: 'Saqlangan kitoblar hozircha yo‘q.', noticeSchool: 'Maktab bo‘limi tez orada qo‘shiladi.'
             },
             ru: {
                 brand: 'Библиотека', greeting: 'Здравствуйте!', welcome: 'Что хотите почитать сегодня?', changeLanguage: 'Сменить язык',
                 search: 'Поиск книги или автора...', books: 'Книги', booksDesc: 'Открыть каталог', find: 'Поиск', findDesc: 'Найти книгу',
-                favorites: 'Избранное', favoritesDesc: 'Сохранённые книги', profile: 'Профиль', profileDesc: 'Данные аккаунта',
+                favorites: 'Избранное', favoritesDesc: 'Сохранённые книги', school: 'Школа', schoolDesc: 'Уроки и материалы',
                 recommendations: 'Рекомендуемые книги', available: 'В наличии', authorSaid: 'Саид Ахмад', startReading: 'Начать чтение', close: 'Закрыть',
-                noticeBooks: 'Каталог книг скоро появится.', noticeFavorites: 'Сохранённых книг пока нет.', noticeProfile: 'Раздел профиля скоро появится.'
+                schoolSection: 'Школьный раздел', schoolSchedule: 'Расписание уроков', scheduleText: 'Предметы и время занятий', schoolLibrary: 'Школьная библиотека', libraryText: 'Доступные книги и пособия',
+                homework: 'Домашние задания', homeworkText: 'Сроки сдачи и контрольные вопросы', schoolNews: 'Школьные новости', newsText: 'Мероприятия и объявления',
+                newTag: 'Новый', popularTag: 'Популярно', todayTag: 'Сегодня', activeTag: 'Активно',
+                noticeBooks: 'Каталог книг скоро появится.', noticeFavorites: 'Сохранённых книг пока нет.', noticeSchool: 'Школьный раздел скоро появится.'
             }
         };
         let currentLanguage = 'uz';
@@ -149,7 +182,7 @@
         }
 
         function showNotice(section) {
-            const key = section === 'books' ? 'noticeBooks' : section === 'favorites' ? 'noticeFavorites' : 'noticeProfile';
+            const key = section === 'books' ? 'noticeBooks' : section === 'favorites' ? 'noticeFavorites' : 'noticeSchool';
             const message = translations[currentLanguage][key];
             if (tg) tg.showAlert(message); else window.alert(message);
         }

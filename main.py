@@ -1,7 +1,6 @@
 import telebot
 from telebot import types
 
-# BotFather'dan olingan yangi token
 TOKEN = "9267813800:AAHXmwECl4NG38pLX74qAMqt4LkYcWLRnSE"
 
 bot = telebot.TeleBot(TOKEN)
@@ -26,14 +25,27 @@ def handle_messages(message):
     elif text == "🇷🇺 Русский язык":
         user_lang[chat_id] = 'ru'
         show_main_menu(chat_id, 'ru')
-    elif text == "📚 Badiiy kitoblar":
-        bot.send_message(chat_id, "Badiiy kitoblar ro'yxati:\n1. O'tkan kunlar\n2. Halqa")
-    elif text == "🏫 Maktab darsliklari":
-        bot.send_message(chat_id, "Maktab darsliklari (1-11 sinflar).")
-    elif text == "📚 Художественные книги":
-        bot.send_message(chat_id, "Список книг:\n1. Минувшие дни\n2. Мастер и Маргарита")
-    elif text == "🏫 Школьные учебники":
-        bot.send_message(chat_id, "Школьные учебники (1-11 классы).")
+    
+    # O'zbekcha menyu bo'limlari
+    elif text == "📚 Kitobxonlar uchun":
+        bot.send_message(chat_id, "Kitobxonlar uchun mo'ljallangan adabiyotlar va resurslar bo'limi.")
+    elif text == "👨‍🏫 O'qituvchilar uchun":
+        bot.send_message(chat_id, "O'qituvchilar uchun metodik qo'llanmalar va dars ishlanmalari.")
+    elif text == "🎒 O'quvchilar uchun":
+        bot.send_message(chat_id, "O'quvchilar uchun foydali darsliklar va qo'shimcha adabiyotlar.")
+    elif text == "👥 O'qituvchi va o'quvchi":
+        bot.send_message(chat_id, "O'qituvchi va o'quvchilar uchun umumiy materiallar bo'limi.")
+    
+    # Ruscha menyu bo'limlari
+    elif text == "📚 Для читателей":
+        bot.send_message(chat_id, "Раздел литературы и ресурсов для читателей.")
+    elif text == "👨‍🏫 Для учителей":
+        bot.send_message(chat_id, "Методические пособия и разработки уроков для учителей.")
+    elif text == "🎒 Для учащихся":
+        bot.send_message(chat_id, "Полезные учебники и дополнительная литература для учеников.")
+    elif text == "👥 Учитель и ученик":
+        bot.send_message(chat_id, "Общий раздел материалов для учителей и учеников.")
+    
     else:
         lang = user_lang.get(chat_id, 'uz')
         if lang == 'uz':
@@ -44,10 +56,20 @@ def handle_messages(message):
 def show_main_menu(chat_id, lang):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     if lang == 'uz':
-        markup.add(types.KeyboardButton("📚 Badiiy kitoblar"), types.KeyboardButton("🏫 Maktab darsliklari"))
-        bot.send_message(chat_id, "Asosiy menyu:", reply_markup=markup)
+        markup.add(
+            types.KeyboardButton("📚 Kitobxonlar uchun"),
+            types.KeyboardButton("👨‍🏫 O'qituvchilar uchun"),
+            types.KeyboardButton("🎒 O'quvchilar uchun"),
+            types.KeyboardButton("👥 O'qituvchi va o'quvchi")
+        )
+        bot.send_message(chat_id, "Asosiy menyu bo'limini tanlang:", reply_markup=markup)
     else:
-        markup.add(types.KeyboardButton("📚 Художественные книги"), types.KeyboardButton("🏫 Школьные учебники"))
-        bot.send_message(chat_id, "Главное меню:", reply_markup=markup)
+        markup.add(
+            types.KeyboardButton("📚 Для читателей"),
+            types.KeyboardButton("👨‍🏫 Для учителей"),
+            types.KeyboardButton("🎒 Для учащихся"),
+            types.KeyboardButton("👥 Учитель и ученик")
+        )
+        bot.send_message(chat_id, "Выберите раздел главного меню:", reply_markup=markup)
 
 bot.infinity_polling()

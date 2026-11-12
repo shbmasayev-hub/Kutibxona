@@ -1,199 +1,75 @@
-<!DOCTYPE html>
-<html lang="uz">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#0878d1">
-    <title>Kutubxona</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <style>
-        :root { color-scheme: light; --blue: #0878d1; --ink: #172033; --muted: #6b7280; --surface: #fff; --page: #f3f6fa; }
-        * { box-sizing: border-box; }
-        body { margin: 0; min-height: 100vh; padding: 20px 16px; background: var(--tg-theme-bg-color, var(--page)); color: var(--tg-theme-text-color, var(--ink)); font-family: Arial, sans-serif; }
-        button, input { font: inherit; }
-        .app { width: 100%; max-width: 440px; margin: 0 auto; }
-        .screen { min-height: calc(100vh - 40px); display: flex; flex-direction: column; }
-        .hidden { display: none !important; }
-        .welcome { flex: 1; display: flex; flex-direction: column; justify-content: center; text-align: center; }
-        .logo { width: 76px; height: 76px; margin: 0 auto 18px; display: grid; place-items: center; border-radius: 24px; background: #e4f2ff; font-size: 40px; }
-        h1 { margin: 0 0 10px; font-size: 28px; }
-        .subtitle { margin: 0 auto 30px; max-width: 320px; color: var(--tg-theme-hint-color, var(--muted)); line-height: 1.5; }
-        .language-list { display: grid; gap: 12px; }
-        .language-btn { display: flex; align-items: center; gap: 14px; padding: 16px; border: 1px solid #e1e7ef; border-radius: 16px; background: var(--tg-theme-secondary-bg-color, var(--surface)); color: inherit; text-align: left; cursor: pointer; box-shadow: 0 5px 16px #1720330c; }
-        .language-btn:active, .menu-item:active, .action-btn:active { transform: scale(.98); }
-        .flag { font-size: 28px; }
-        .language-btn strong { display: block; margin-bottom: 3px; }
-        .language-btn small { color: var(--muted); }
-        .header { padding: 20px; border-radius: 20px; color: white; background: linear-gradient(135deg, #0878d1, #075da8); }
-        .brand { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; }
-        .brand-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 13px; background: #ffffff2b; font-size: 23px; }
-        .header h1 { margin: 18px 0 5px; font-size: 25px; }
-        .header p { margin: 0; color: #ffffffd9; font-size: 14px; }
-        .language-switch { margin-top: 15px; padding: 7px 10px; border: 1px solid #ffffff70; border-radius: 10px; background: transparent; color: white; cursor: pointer; }
-        .search { margin: 16px 0; padding: 13px 14px; display: flex; gap: 10px; border: 1px solid #e1e7ef; border-radius: 14px; background: var(--tg-theme-secondary-bg-color, var(--surface)); }
-        .search input { width: 100%; border: 0; outline: 0; background: transparent; color: inherit; }
-        .menu-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-        .menu-item { padding: 15px 13px; border: 1px solid #e1e7ef; border-radius: 16px; background: var(--tg-theme-secondary-bg-color, var(--surface)); color: inherit; text-align: left; cursor: pointer; box-shadow: 0 5px 16px #1720330c; transition: transform .12s; }
-        .menu-icon { margin-bottom: 10px; font-size: 25px; }
-        .menu-item strong { display: block; margin-bottom: 5px; }
-        .menu-item small { color: var(--tg-theme-hint-color, var(--muted)); }
-        .panel { margin-top: 16px; padding: 16px; border: 1px solid #e1e7ef; border-radius: 17px; background: var(--tg-theme-secondary-bg-color, var(--surface)); }
-        .panel-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .panel-heading h2 { margin: 0; font-size: 18px; }
-        .count { padding: 5px 9px; border-radius: 20px; background: #e8f4ff; color: var(--blue); font-size: 12px; }
-        .book { display: flex; align-items: center; gap: 11px; padding: 11px 0; border-top: 1px solid #edf0f4; }
-        .cover { width: 40px; height: 44px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 8px; background: linear-gradient(145deg, #42b7e9, #2864c7); color: white; font-weight: bold; }
-        .book strong { display: block; font-size: 14px; }
-        .book small { display: block; margin-top: 4px; color: var(--muted); }
-        .available { margin-left: auto; color: #08785f; font-size: 11px; white-space: nowrap; }
-        .school-list { display: grid; gap: 10px; }
-        .school-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px; border-radius: 12px; background: #f2f7ff; border: 1px solid #dfeeff; }
-        .school-item strong { font-size: 14px; }
-        .school-item small { color: var(--muted); display: block; margin-top: 3px; }
-        .tag { font-size: 11px; padding: 5px 8px; border-radius: 999px; background: #dff6e8; color: #0a6d4d; font-weight: 700; }
-        .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: auto; padding-top: 18px; }
-        .action-btn { padding: 13px 10px; border: 0; border-radius: 12px; font-weight: 700; cursor: pointer; transition: transform .12s; }
-        .primary { background: var(--tg-theme-button-color, var(--blue)); color: var(--tg-theme-button-text-color, white); }
-        .secondary { background: #e9edf2; color: var(--ink); }
-    </style>
-</head>
-<body>
-    <main class="app">
-        <section id="language-screen" class="screen">
-            <div class="welcome">
-                <div class="logo">📚</div>
-                <h1>Kutubxonaga xush kelibsiz!</h1>
-                <p class="subtitle">Davom etish uchun tilni tanlang<br>Выберите язык, чтобы продолжить</p>
-                <div class="language-list">
-                    <button class="language-btn" type="button" onclick="selectLanguage('uz')">
-                        <span class="flag">🇺🇿</span><span><strong>O‘zbekcha</strong><small>O‘zbek tilida davom etish</small></span>
-                    </button>
-                    <button class="language-btn" type="button" onclick="selectLanguage('ru')">
-                        <span class="flag">🇷🇺</span><span><strong>Русский</strong><small>Продолжить на русском</small></span>
-                    </button>
-                </div>
-            </div>
-        </section>
+import telebot
+from telebot import types
 
-        <section id="menu-screen" class="screen hidden">
-            <header class="header">
-                <div class="brand"><span class="brand-icon">📚</span><span data-i18n="brand">Kutubxona</span></div>
-                <h1 data-i18n="greeting">Salom!</h1>
-                <p data-i18n="welcome">Bugun nima o‘qishni xohlaysiz?</p>
-                <button class="language-switch" type="button" onclick="showLanguageScreen()" data-i18n="changeLanguage">Tilni o‘zgartirish</button>
-            </header>
+TOKEN = "9267813800:AAHXmwECl4NG38pLX74qAMqt4LkYcWLRnSE"
 
-            <label class="search"><span>🔍</span><input id="search-input" type="search" data-i18n-placeholder="search" placeholder="Kitob yoki muallifni qidiring..." /></label>
+bot = telebot.TeleBot(TOKEN)
+user_lang = {}
 
-            <section class="menu-grid" aria-label="Menu">
-                <button class="menu-item" type="button" onclick="showNotice('books')"><div class="menu-icon">📖</div><strong data-i18n="books">Kitoblar</strong><small data-i18n="booksDesc">Katalogni ko‘rish</small></button>
-                <button class="menu-item" type="button" onclick="document.getElementById('search-input').focus()"><div class="menu-icon">🔎</div><strong data-i18n="find">Qidirish</strong><small data-i18n="findDesc">Kitob topish</small></button>
-                <button class="menu-item" type="button" onclick="showNotice('favorites')"><div class="menu-icon">⭐</div><strong data-i18n="favorites">Sevimlilar</strong><small data-i18n="favoritesDesc">Saqlangan kitoblar</small></button>
-                <button class="menu-item" type="button" onclick="showNotice('school')"><div class="menu-icon">🎒</div><strong data-i18n="school">Maktab</strong><small data-i18n="schoolDesc">Darslar va materiallar</small></button>
-            </section>
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    btn_uz = types.KeyboardButton("🇺🇿 O'zbek tili")
+    btn_ru = types.KeyboardButton("🇷🇺 Русский язык")
+    markup.add(btn_uz, btn_ru)
+    bot.send_message(message.chat.id, "Assalomu alaykum! Tilni tanlang:\nЗдравствуйте! Выберите язык:", reply_markup=markup)
 
-            <section class="panel">
-                <div class="panel-heading"><h2 data-i18n="recommendations">Tavsiya etilgan kitoblar</h2><span class="count">3</span></div>
-                <div class="book"><span class="cover">N</span><span><strong>Alisher Navoiy</strong><small>“Lison ut-Tayr”</small></span><span class="available" data-i18n="available">Mavjud</span></div>
-                <div class="book"><span class="cover">F</span><span><strong>F. Scott Fitzgerald</strong><small>“The Great Gatsby”</small></span><span class="available" data-i18n="available">Mavjud</span></div>
-                <div class="book"><span class="cover">S</span><span><strong data-i18n="authorSaid">Said Ahmad</strong><small>“Ufq”</small></span><span class="available" data-i18n="available">Mavjud</span></div>
-            </section>
+@bot.message_handler(func=lambda message: True)
+def handle_messages(message):
+    chat_id = message.chat.id
+    text = message.text
 
-            <section class="panel">
-                <div class="panel-heading"><h2 data-i18n="schoolSection">Maktab bo‘limi</h2><span class="count">4</span></div>
-                <div class="school-list">
-                    <div class="school-item">
-                        <div><strong data-i18n="schoolSchedule">Dars jadvali</strong><small data-i18n="scheduleText">Fanlar va mashg‘ulot vaqtlari</small></div>
-                        <span class="tag" data-i18n="newTag">Yangi</span>
-                    </div>
-                    <div class="school-item">
-                        <div><strong data-i18n="schoolLibrary">Maktab kutubxonasi</strong><small data-i18n="libraryText">Mavjud kitoblar va qo‘llanmalar</small></div>
-                        <span class="tag" data-i18n="popularTag">Mashhur</span>
-                    </div>
-                    <div class="school-item">
-                        <div><strong data-i18n="homework">Uy vazifalari</strong><small data-i18n="homeworkText">Topshirish va nazorat savollari</small></div>
-                        <span class="tag" data-i18n="todayTag">Bugun</span>
-                    </div>
-                    <div class="school-item">
-                        <div><strong data-i18n="schoolNews">Maktab yangiliklari</strong><small data-i18n="newsText">Tadbirlar va e’lonlar</small></div>
-                        <span class="tag" data-i18n="activeTag">Faol</span>
-                    </div>
-                </div>
-            </section>
+    if text == "🇺🇿 O'zbek tili":
+        user_lang[chat_id] = 'uz'
+        show_main_menu(chat_id, 'uz')
+    elif text == "🇷🇺 Русский язык":
+        user_lang[chat_id] = 'ru'
+        show_main_menu(chat_id, 'ru')
+    
+    # O'zbekcha menyu bo'limlari
+    elif text == "📚 Kitobxonlar uchun":
+        bot.send_message(chat_id, "Kitobxonlar uchun mo'ljallangan adabiyotlar va resurslar bo'limi.")
+    elif text == "👨‍🏫 O'qituvchilar uchun":
+        bot.send_message(chat_id, "O'qituvchilar uchun metodik qo'llanmalar va dars ishlanmalari.")
+    elif text == "🎒 O'quvchilar uchun":
+        bot.send_message(chat_id, "O'quvchilar uchun foydali darsliklar va qo'shimcha adabiyotlar.")
+    elif text == "👥 O'qituvchi va o'quvchi":
+        bot.send_message(chat_id, "O'qituvchi va o'quvchilar uchun umumiy materiallar bo'limi.")
+    
+    # Ruscha menyu bo'limlari
+    elif text == "📚 Для читателей":
+        bot.send_message(chat_id, "Раздел литературы и ресурсов для читателей.")
+    elif text == "👨‍🏫 Для учителей":
+        bot.send_message(chat_id, "Методические пособия и разработки уроков для учителей.")
+    elif text == "🎒 Для учащихся":
+        bot.send_message(chat_id, "Полезные учебники и дополнительная литература для учеников.")
+    elif text == "👥 Учитель и ученик":
+        bot.send_message(chat_id, "Общий раздел материалов для учителей и учеников.")
+    
+    else:
+        lang = user_lang.get(chat_id, 'uz')
+        if lang == 'uz':
+            bot.send_message(chat_id, "Iltimos, tugmalardan birini tanlang.")
+        else:
+            bot.send_message(chat_id, "Пожалуйста, выберите кнопку.")
 
-            <div class="actions">
-                <button class="action-btn primary" type="button" onclick="showNotice('books')" data-i18n="startReading">O‘qishni boshlash</button>
-                <button class="action-btn secondary" type="button" onclick="closeApp()" data-i18n="close">Yopish</button>
-            </div>
-        </section>
-    </main>
+def show_main_menu(chat_id, lang):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    if lang == 'uz':
+        markup.add(
+            types.KeyboardButton("📚 Kitobxonlar uchun"),
+            types.KeyboardButton("👨‍🏫 O'qituvchilar uchun"),
+            types.KeyboardButton("🎒 O'quvchilar uchun"),
+            types.KeyboardButton("👥 O'qituvchi va o'quvchi")
+        )
+        bot.send_message(chat_id, "Asosiy menyu bo'limini tanlang:", reply_markup=markup)
+    else:
+        markup.add(
+            types.KeyboardButton("📚 Для читателей"),
+            types.KeyboardButton("👨‍🏫 Для учителей"),
+            types.KeyboardButton("🎒 Для учащихся"),
+            types.KeyboardButton("👥 Учитель и ученик")
+        )
+        bot.send_message(chat_id, "Выберите раздел главного меню:", reply_markup=markup)
 
-    <script>
-        const translations = {
-            uz: {
-                brand: 'Kutubxona', greeting: 'Salom!', welcome: 'Bugun nima o‘qishni xohlaysiz?', changeLanguage: 'Tilni o‘zgartirish',
-                search: 'Kitob yoki muallifni qidiring...', books: 'Kitoblar', booksDesc: 'Katalogni ko‘rish', find: 'Qidirish', findDesc: 'Kitob topish',
-                favorites: 'Sevimlilar', favoritesDesc: 'Saqlangan kitoblar', school: 'Maktab', schoolDesc: 'Darslar va materiallar',
-                recommendations: 'Tavsiya etilgan kitoblar', available: 'Mavjud', authorSaid: 'Said Ahmad', startReading: 'O‘qishni boshlash', close: 'Yopish',
-                schoolSection: 'Maktab bo‘limi', schoolSchedule: 'Dars jadvali', scheduleText: 'Fanlar va mashg‘ulot vaqtlari', schoolLibrary: 'Maktab kutubxonasi', libraryText: 'Mavjud kitoblar va qo‘llanmalar',
-                homework: 'Uy vazifalari', homeworkText: 'Topshirish va nazorat savollari', schoolNews: 'Maktab yangiliklari', newsText: 'Tadbirlar va e’lonlar',
-                newTag: 'Yangi', popularTag: 'Mashhur', todayTag: 'Bugun', activeTag: 'Faol',
-                noticeBooks: 'Kitoblar katalogi tez orada qo‘shiladi.', noticeFavorites: 'Saqlangan kitoblar hozircha yo‘q.', noticeSchool: 'Maktab bo‘limi tez orada qo‘shiladi.'
-            },
-            ru: {
-                brand: 'Библиотека', greeting: 'Здравствуйте!', welcome: 'Что хотите почитать сегодня?', changeLanguage: 'Сменить язык',
-                search: 'Поиск книги или автора...', books: 'Книги', booksDesc: 'Открыть каталог', find: 'Поиск', findDesc: 'Найти книгу',
-                favorites: 'Избранное', favoritesDesc: 'Сохранённые книги', school: 'Школа', schoolDesc: 'Уроки и материалы',
-                recommendations: 'Рекомендуемые книги', available: 'В наличии', authorSaid: 'Саид Ахмад', startReading: 'Начать чтение', close: 'Закрыть',
-                schoolSection: 'Школьный раздел', schoolSchedule: 'Расписание уроков', scheduleText: 'Предметы и время занятий', schoolLibrary: 'Школьная библиотека', libraryText: 'Доступные книги и пособия',
-                homework: 'Домашние задания', homeworkText: 'Сроки сдачи и контрольные вопросы', schoolNews: 'Школьные новости', newsText: 'Мероприятия и объявления',
-                newTag: 'Новый', popularTag: 'Популярно', todayTag: 'Сегодня', activeTag: 'Активно',
-                noticeBooks: 'Каталог книг скоро появится.', noticeFavorites: 'Сохранённых книг пока нет.', noticeSchool: 'Школьный раздел скоро появится.'
-            }
-        };
-        let currentLanguage = 'uz';
-        const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
-
-        function selectLanguage(language) {
-            currentLanguage = language;
-            applyLanguage();
-            document.getElementById('language-screen').classList.add('hidden');
-            document.getElementById('menu-screen').classList.remove('hidden');
-            try { localStorage.setItem('kutubxona-language', language); } catch (error) { /* storage may be unavailable in Telegram */ }
-            if (tg) { tg.MainButton.hide(); }
-        }
-
-        function applyLanguage() {
-            const words = translations[currentLanguage];
-            document.documentElement.lang = currentLanguage;
-            document.querySelectorAll('[data-i18n]').forEach((element) => {
-                const key = element.dataset.i18n;
-                if (words[key]) element.textContent = words[key];
-            });
-            document.querySelectorAll('[data-i18n-placeholder]').forEach((element) => {
-                const key = element.dataset.i18nPlaceholder;
-                if (words[key]) element.placeholder = words[key];
-            });
-        }
-
-        function showLanguageScreen() {
-            document.getElementById('menu-screen').classList.add('hidden');
-            document.getElementById('language-screen').classList.remove('hidden');
-        }
-
-        function showNotice(section) {
-            const key = section === 'books' ? 'noticeBooks' : section === 'favorites' ? 'noticeFavorites' : 'noticeSchool';
-            const message = translations[currentLanguage][key];
-            if (tg) tg.showAlert(message); else window.alert(message);
-        }
-
-        function closeApp() { if (tg) tg.close(); }
-
-        if (tg) { tg.ready(); tg.expand(); }
-        try {
-            const savedLanguage = localStorage.getItem('kutubxona-language');
-            if (savedLanguage === 'uz' || savedLanguage === 'ru') selectLanguage(savedLanguage);
-        } catch (error) { /* language selection still works without local storage */ }
-    </script>
-</body>
-</html>
+bot.infinity_polling()

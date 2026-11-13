@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="uz">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#091222">
+    <title>Kutibxona · 3D App Launcher</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #091222;
+        --text: #eef5ff;
+        --muted: #9eacc2;
+        --mint: #72e0c0;
+        --gold: #ffd18a;
+        --violet: #9d8bff;
+        --panel: rgba(18, 31, 54, .82);
+        --line: rgba(177, 201, 239, .16);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        overflow-x: hidden;
+        background:
+          radial-gradient(ellipse at 48% -15%, rgba(74, 112, 190, .35), transparent 48%),
+          radial-gradient(ellipse at 100% 52%, rgba(100, 72, 179, .15), transparent 37%),
+          radial-gradient(ellipse at 0% 85%, rgba(29, 151, 139, .12), transparent 40%),
+          var(--bg);
+        color: var(--text);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      button { font: inherit; }
+
+      .shell {
+        width: min(100% - 32px, 760px);
+        margin: 0 auto;
+        padding: max(20px, env(safe-area-inset-top)) 0 max(28px, env(safe-area-inset-bottom));
+      }
+
+      .topbar, .brand, .profile, .card-top, .card-bottom, .footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .topbar { min-height: 42px; }
+      .brand { justify-content: flex-start; gap: 10px; font-size: 15px; font-weight: 750; letter-spacing: .02em; }
+      .brand-mark {
+        display: grid;
+        width: 34px;
+        height: 34px;
+        place-items: center;
+        border: 1px solid rgba(114, 224, 192, .4);
+        border-radius: 12px;
+        background: linear-gradient(145deg, rgba(114,224,192,.18), rgba(157,139,255,.12));
+        box-shadow: inset 0 1px rgba(255,255,255,.1), 0 8px 22px rgba(0,0,0,.2);
+      }
+
+      .status {
+        padding: 7px 10px;
+        border: 1px solid var(--line);
+        border-radius: 99px;
+        color: #b7c8dc;
+        font-size: 11px;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+      }
+      .status::before {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        margin: 0 7px 1px 0;
+        border-radius: 50%;
+        background: var(--mint);
+        box-shadow: 0 0 12px var(--mint);
+        content: "";
+      }
+
+      .hero {
+        position: relative;
+        display: grid;
+        min-height: 250px;
+        align-items: center;
+        grid-template-columns: minmax(0, 1fr) 190px;
+        gap: 16px;
+        padding: 34px 0 22px;
+      }
+
+      .eyebrow {
+        margin: 0 0 10px;
+        color: var(--mint);
+        font-size: 11px;
+        font-weight: 750;
+        letter-spacing: .18em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        max-width: 470px;
+        margin: 0;
+        font-size: clamp(32px, 8vw, 54px);
+        font-weight: 760;
+        letter-spacing: -.055em;
+        line-height: .98;
+      }
+
+      .hero-copy {
+        max-width: 440px;
+        margin: 15px 0 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.65;
+      }
+
+      .book-orbit {
+        position: relative;
+        display: grid;
+        width: 174px;
+        aspect-ratio: 1;
+        place-items: center;
+        perspective: 700px;
+        justify-self: center;
+      }
+      .orbit {
+        position: absolute;
+        inset: 18%;
+        border: 1px solid rgba(114, 224, 192, .22);
+        border-radius: 50%;
+        transform: rotateX(68deg) rotateZ(-24deg);
+        box-shadow: 0 0 28px rgba(114, 224, 192, .09);
+      }
+      .orbit::after {
+        position: absolute;
+        top: 50%;
+        right: -4px;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--gold);
+        box-shadow: 0 0 15px var(--gold);
+        content: "";
+      }
+      .orbit.orbit-two {
+        inset: 5%;
+        border-color: rgba(157, 139, 255, .18);
+        transform: rotateX(68deg) rotateZ(50deg);
+      }
+      .orbit.orbit-two::after { background: var(--violet); box-shadow: 0 0 15px var(--violet); }
+      .book {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        width: 84px;
+        height: 104px;
+        place-items: center;
+        border: 1px solid rgba(255,255,255,.43);
+        border-radius: 12px 9px 9px 12px;
+        background: linear-gradient(145deg, #93f0d2, #36a991 65%, #24776f);
+        box-shadow: 10px 15px 25px rgba(0,0,0,.38), inset 5px 0 rgba(255,255,255,.24), inset -5px 0 rgba(0,0,0,.08);
+        color: #073532;
+        font-size: 34px;
+        transform: rotateY(-22deg) rotateZ(-7deg);
+        animation: float 5s ease-in-out infinite;
+      }
+      .book::after {
+        position: absolute;
+        top: 8px;
+        bottom: 8px;
+        left: 10px;
+        width: 1px;
+        background: rgba(5, 65, 58, .34);
+        content: "";
+      }
+      @keyframes float {
+        0%, 100% { transform: translateY(0) rotateY(-22deg) rotateZ(-7deg); }
+        50% { transform: translateY(-8px) rotateY(-16deg) rotateZ(-4deg); }
+      }
+
+      .section-heading {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 16px;
+        margin: 9px 0 15px;
+      }
+      h2 { margin: 0; font-size: 18px; letter-spacing: -.02em; }
+      .hint { margin: 0; color: var(--muted); font-size: 12px; }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 13px;
+        perspective: 1200px;
+      }
+
+      .tile {
+        --tilt-x: 0deg;
+        --tilt-y: 0deg;
+        --glow: rgba(114, 224, 192, .18);
+        position: relative;
+        min-height: 151px;
+        padding: 16px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background: linear-gradient(145deg, rgba(26, 43, 70, .94), var(--panel));
+        box-shadow: 0 18px 34px rgba(0,0,0,.18), inset 0 1px rgba(255,255,255,.075);
+        color: var(--text);
+        text-align: left;
+        transform: perspective(900px) rotateX(var(--tilt-y)) rotateY(var(--tilt-x));
+        transform-style: preserve-3d;
+        transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease;
+        -webkit-tap-highlight-color: transparent;
+        cursor: pointer;
+      }
+      .tile::before {
+        position: absolute;
+        top: -50px;
+        right: -40px;
+        width: 145px;
+        height: 145px;
+        border-radius: 50%;
+        background: radial-gradient(circle, var(--glow), transparent 70%);
+        content: "";
+        pointer-events: none;
+        transform: translateZ(12px);
+      }
+      .tile::after {
+        position: absolute;
+        right: 16px;
+        bottom: 12px;
+        color: rgba(225, 237, 255, .55);
+        content: "↗";
+        font-size: 17px;
+        transform: translateZ(20px);
+      }
+      .tile:hover, .tile:focus-visible {
+        border-color: rgba(114, 224, 192, .5);
+        box-shadow: 0 24px 44px rgba(0,0,0,.28), 0 0 24px var(--glow), inset 0 1px rgba(255,255,255,.1);
+        outline: none;
+      }
+      .tile:active { transform: perspective(900px) scale(.975); }
+      .tile[data-section="audio"] { --glow: rgba(255, 209, 138, .22); }
+      .tile[data-section="teachers"] { --glow: rgba(157, 139, 255, .24); }
+      .tile[data-section="students"] { --glow: rgba(114, 224, 192, .2); }
+      .tile[data-section="resources"] { --glow: rgba(114, 166, 255, .22); }
+      .tile[data-section="about"] { --glow: rgba(255, 142, 177, .2); }
+
+      .card-top { position: relative; z-index: 1; align-items: flex-start; }
+      .icon {
+        display: grid;
+        width: 48px;
+        height: 48px;
+        place-items: center;
+        border: 1px solid rgba(255,255,255,.14);
+        border-radius: 15px;
+        background: linear-gradient(145deg, rgba(255,255,255,.15), rgba(255,255,255,.035));
+        box-shadow: 5px 7px 14px rgba(0,0,0,.2), inset 0 1px rgba(255,255,255,.12);
+        font-size: 24px;
+        transform: translateZ(25px);
+      }
+      .index { color: rgba(200, 216, 240, .45); font-size: 10px; letter-spacing: .12em; }
+      .card-bottom {
+        position: relative;
+        z-index: 1;
+        align-items: flex-end;
+        margin-top: 21px;
+        transform: translateZ(17px);
+      }
+      .title { display: block; margin: 0; font-size: 15px; font-weight: 720; letter-spacing: -.02em; }
+      .description { display: block; margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.4; }
+
+      .footer {
+        justify-content: center;
+        gap: 8px;
+        margin-top: 18px;
+        color: rgba(158, 172, 194, .68);
+        font-size: 10px;
+      }
+      .footer-mark { color: var(--mint); }
+      .notice {
+        display: none;
+        margin-top: 14px;
+        padding: 11px 13px;
+        border: 1px solid rgba(255, 209, 138, .3);
+        border-radius: 12px;
+        background: rgba(255, 209, 138, .08);
+        color: #ffe2b7;
+        font-size: 12px;
+      }
+      .notice.visible { display: block; }
+
+      @media (max-width: 520px) {
+        .shell { width: min(100% - 24px, 420px); }
+        .hero { min-height: 227px; grid-template-columns: minmax(0, 1fr) 112px; gap: 4px; padding-top: 28px; }
+        .book-orbit { width: 118px; }
+        .book { width: 61px; height: 78px; border-radius: 9px; font-size: 25px; }
+        .hero-copy { max-width: 240px; font-size: 12px; }
+        .grid { gap: 10px; }
+        .tile { min-height: 142px; padding: 13px; border-radius: 17px; }
+        .icon { width: 43px; height: 43px; font-size: 21px; }
+        .title { font-size: 13px; }
+        .description { max-width: 130px; font-size: 10px; }
+        .section-heading { align-items: flex-start; flex-direction: column; gap: 5px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand"><span class="brand-mark">✦</span><span>KUTIBXONA</span></div>
+        <div class="status" id="status">ONLINE</div>
+      </header>
+
+      <section class="hero" aria-labelledby="welcome-title">
+        <div>
+          <p class="eyebrow" id="eyebrow">BILIMLAR OLAMIGA KIRISH</p>
+          <h1 id="welcome-title">Kutubxonangiz,<br>yangi o‘lchamda.</h1>
+          <p class="hero-copy" id="hero-copy">Kitoblar, audio va ta’limiy resurslar — barchasi bitta makonda.</p>
+        </div>
+        <div class="book-orbit" aria-hidden="true">
+          <div class="orbit"></div><div class="orbit orbit-two"></div>
+          <div class="book">✦</div>
+        </div>
+      </section>
+
+      <section aria-labelledby="section-title">
+        <div class="section-heading">
+          <h2 id="section-title">Nimani izlayapsiz?</h2>
+          <p class="hint" id="section-hint">Bo‘limni tanlang · Telegram’da ochiladi</p>
+        </div>
+        <div class="grid" id="launcher-grid"></div>
+        <div class="notice" id="notice" role="status"></div>
+      </section>
+
+      <footer class="footer"><span class="footer-mark">✦</span><span>Kutubxona · O‘qing, tinglang, o‘rganing</span></footer>
+    </main>
+    <script>
+      (() => {
+        const telegram = window.Telegram && window.Telegram.WebApp;
+        if (telegram) {
+          telegram.ready();
+          telegram.expand();
+          if (telegram.setHeaderColor) telegram.setHeaderColor("#091222");
+          if (telegram.setBackgroundColor) telegram.setBackgroundColor("#091222");
+        }
+
+        const languageCode = telegram && telegram.initDataUnsafe && telegram.initDataUnsafe.user
+          ? telegram.initDataUnsafe.user.language_code
+          : "uz";
+        const isRussian = languageCode === "ru";
+        const content = isRussian ? {
+          eyebrow: "ВХОД В МИР ЗНАНИЙ",
+          title: "Ваша библиотека<br>в новом измерении.",
+          intro: "Книги, аудио и учебные материалы — всё в одном пространстве.",
+          section: "Что вы ищете?",
+          hint: "Выберите раздел · откроется в Telegram",
+          footer: "Kutubxona · Читайте, слушайте, учитесь",
+          missing: "Откройте приложение через кнопку меню в боте, чтобы перейти в раздел.",
+          cards: [
+            ["books", "📚", "Книги", "Книги и учебная литература"],
+            ["audio", "🎧", "Аудиокниги", "Слушайте прямо в Telegram"],
+            ["teachers", "👩‍🏫", "Учителям", "Методические материалы"],
+            ["students", "🎒", "Ученикам", "Выберите класс и предмет"],
+            ["resources", "🧭", "Общие ресурсы", "Материалы для всех"],
+            ["about", "✨", "О библиотеке", "Откройте Kutubxona"],
+          ],
+        } : {
+          eyebrow: "BILIMLAR OLAMIGA KIRISH",
+          title: "Kutubxonangiz,<br>yangi o‘lchamda.",
+          intro: "Kitoblar, audio va ta’limiy resurslar — barchasi bitta makonda.",
+          section: "Nimani izlayapsiz?",
+          hint: "Bo‘limni tanlang · Telegram’da ochiladi",
+          footer: "Kutubxona · O‘qing, tinglang, o‘rganing",
+          missing: "Bo‘limga o‘tish uchun ilovani bot menyusidagi tugma orqali oching.",
+          cards: [
+            ["books", "📚", "Kitoblar", "Kitoblar va darsliklar"],
+            ["audio", "🎧", "Audiokitoblar", "Telegram’da tinglang"],
+            ["teachers", "👩‍🏫", "O‘qituvchilar", "Metodik qo‘llanmalar"],
+            ["students", "🎒", "O‘quvchilar", "Sinf va fanni tanlang"],
+            ["resources", "🧭", "Umumiy resurslar", "Barcha uchun materiallar"],
+            ["about", "✨", "Kutubxona haqida", "Kutubxonani kashf eting"],
+          ],
+        };
+
+        document.documentElement.lang = isRussian ? "ru" : "uz";
+        document.getElementById("eyebrow").textContent = content.eyebrow;
+        document.getElementById("welcome-title").innerHTML = content.title;
+        document.getElementById("hero-copy").textContent = content.intro;
+        document.getElementById("section-title").textContent = content.section;
+        document.getElementById("section-hint").textContent = content.hint;
+        document.querySelector(".footer span:last-child").textContent = content.footer;
+
+        const grid = document.getElementById("launcher-grid");
+        const notice = document.getElementById("notice");
+        content.cards.forEach(([section, icon, title, description], index) => {
+          const button = document.createElement("button");
+          button.className = "tile";
+          button.type = "button";
+          button.dataset.section = section;
+          button.setAttribute("aria-label", title + ". " + description);
+          button.innerHTML = `
+            <span class="card-top">
+              <span class="icon" aria-hidden="true">${icon}</span>
+              <span class="index">0${index + 1}</span>
+            </span>
+            <span class="card-bottom">
+              <span><span class="title">${title}</span><span class="description">${description}</span></span>
+            </span>`;
+          button.addEventListener("click", () => {
+            if (telegram && telegram.sendData) {
+              telegram.sendData(JSON.stringify({ action: "open", section }));
+            } else {
+              notice.textContent = content.missing;
+              notice.classList.add("visible");
+            }
+          });
+          button.addEventListener("pointermove", (event) => {
+            if (event.pointerType === "touch") return;
+            const rect = button.getBoundingClientRect();
+            const x = (event.clientX - rect.left) / rect.width - .5;
+            const y = (event.clientY - rect.top) / rect.height - .5;
+            button.style.setProperty("--tilt-x", `${x * 8}deg`);
+            button.style.setProperty("--tilt-y", `${y * -8}deg`);
+          });
+          button.addEventListener("pointerleave", () => {
+            button.style.setProperty("--tilt-x", "0deg");
+            button.style.setProperty("--tilt-y", "0deg");
+          });
+          grid.appendChild(button);
+        });
+      })();
+    </script>
+  </body>
+</html>

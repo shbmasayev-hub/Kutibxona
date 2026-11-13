@@ -1,75 +1,236 @@
-import telebot
-from telebot import types
+<!DOCTYPE html>
+<html lang="uz">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kutibxona</title>
+    <style>
+      :root {
+        --bg: #f4f8f3;
+        --card: #ffffff;
+        --primary: #2f6f4f;
+        --primary-dark: #214d3a;
+        --accent: #dfeecf;
+        --text: #243127;
+        --muted: #5d6d63;
+      }
 
-TOKEN = "9267813800:AAHXmwECl4NG38pLX74qAMqt4LkYcWLRnSE"
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: linear-gradient(180deg, var(--bg), #edf3ec);
+        color: var(--text);
+      }
 
-bot = telebot.TeleBot(TOKEN)
-user_lang = {}
+      header {
+        background: var(--primary);
+        color: white;
+        padding: 32px 20px;
+      }
 
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    btn_uz = types.KeyboardButton("🇺🇿 O'zbek tili")
-    btn_ru = types.KeyboardButton("🇷🇺 Русский язык")
-    markup.add(btn_uz, btn_ru)
-    bot.send_message(message.chat.id, "Assalomu alaykum! Tilni tanlang:\nЗдравствуйте! Выберите язык:", reply_markup=markup)
+      .container {
+        max-width: 1100px;
+        margin: 0 auto;
+      }
 
-@bot.message_handler(func=lambda message: True)
-def handle_messages(message):
-    chat_id = message.chat.id
-    text = message.text
+      nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
 
-    if text == "🇺🇿 O'zbek tili":
-        user_lang[chat_id] = 'uz'
-        show_main_menu(chat_id, 'uz')
-    elif text == "🇷🇺 Русский язык":
-        user_lang[chat_id] = 'ru'
-        show_main_menu(chat_id, 'ru')
-    
-    # O'zbekcha menyu bo'limlari
-    elif text == "📚 Kitobxonlar uchun":
-        bot.send_message(chat_id, "Kitobxonlar uchun mo'ljallangan adabiyotlar va resurslar bo'limi.")
-    elif text == "👨‍🏫 O'qituvchilar uchun":
-        bot.send_message(chat_id, "O'qituvchilar uchun metodik qo'llanmalar va dars ishlanmalari.")
-    elif text == "🎒 O'quvchilar uchun":
-        bot.send_message(chat_id, "O'quvchilar uchun foydali darsliklar va qo'shimcha adabiyotlar.")
-    elif text == "👥 O'qituvchi va o'quvchi":
-        bot.send_message(chat_id, "O'qituvchi va o'quvchilar uchun umumiy materiallar bo'limi.")
-    
-    # Ruscha menyu bo'limlari
-    elif text == "📚 Для читателей":
-        bot.send_message(chat_id, "Раздел литературы и ресурсов для читателей.")
-    elif text == "👨‍🏫 Для учителей":
-        bot.send_message(chat_id, "Методические пособия и разработки уроков для учителей.")
-    elif text == "🎒 Для учащихся":
-        bot.send_message(chat_id, "Полезные учебники и дополнительная литература для учеников.")
-    elif text == "👥 Учитель и ученик":
-        bot.send_message(chat_id, "Общий раздел материалов для учителей и учеников.")
-    
-    else:
-        lang = user_lang.get(chat_id, 'uz')
-        if lang == 'uz':
-            bot.send_message(chat_id, "Iltimos, tugmalardan birini tanlang.")
-        else:
-            bot.send_message(chat_id, "Пожалуйста, выберите кнопку.")
+      .brand {
+        font-size: 2rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
 
-def show_main_menu(chat_id, lang):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    if lang == 'uz':
-        markup.add(
-            types.KeyboardButton("📚 Kitobxonlar uchun"),
-            types.KeyboardButton("👨‍🏫 O'qituvchilar uchun"),
-            types.KeyboardButton("🎒 O'quvchilar uchun"),
-            types.KeyboardButton("👥 O'qituvchi va o'quvchi")
-        )
-        bot.send_message(chat_id, "Asosiy menyu bo'limini tanlang:", reply_markup=markup)
-    else:
-        markup.add(
-            types.KeyboardButton("📚 Для читателей"),
-            types.KeyboardButton("👨‍🏫 Для учителей"),
-            types.KeyboardButton("🎒 Для учащихся"),
-            types.KeyboardButton("👥 Учитель и ученик")
-        )
-        bot.send_message(chat_id, "Выберите раздел главного меню:", reply_markup=markup)
+      .hero {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 40px;
+        align-items: center;
+        padding: 48px 0 24px;
+      }
 
-bot.infinity_polling()
+      h1 {
+        font-size: clamp(2.2rem, 4vw, 4rem);
+        line-height: 1.1;
+        margin: 0 0 18px;
+      }
+
+      p {
+        font-size: 1.1rem;
+        line-height: 1.7;
+        color: var(--muted);
+      }
+
+      .cta-row {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-top: 28px;
+      }
+
+      .button {
+        display: inline-block;
+        text-decoration: none;
+        border-radius: 999px;
+        padding: 14px 22px;
+        font-weight: 700;
+        transition: transform 0.15s ease;
+      }
+
+      .button:hover { transform: translateY(-1px); }
+      .button.primary {
+        background: var(--primary);
+        color: white;
+      }
+      .button.secondary {
+        background: var(--accent);
+        color: var(--primary-dark);
+      }
+
+      .panel {
+        background: var(--card);
+        border-radius: 22px;
+        box-shadow: 0 18px 48px rgba(31, 63, 43, 0.08);
+        padding: 28px;
+      }
+
+      .mini-card {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 14px 20px;
+        background: #f7faf6;
+        border-radius: 16px;
+        margin-bottom: 12px;
+      }
+
+      .mini-card strong { display: block; }
+      .mini-card span {
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 24px;
+        margin: 48px 0;
+      }
+
+      .card {
+        background: var(--card);
+        border-radius: 20px;
+        padding: 24px 20px;
+        box-shadow: 0 12px 32px rgba(18, 39, 28, 0.05);
+      }
+
+      .card h3 {
+        margin-top: 0;
+        margin-bottom: 10px;
+      }
+
+      .card p {
+        margin-bottom: 0;
+      }
+
+      footer {
+        background: #1f352d;
+        color: rgba(255,255,255,0.8);
+        padding: 26px 20px 40px;
+        text-align: center;
+      }
+
+      @media (max-width: 760px) {
+        .hero,
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="container">
+        <nav>
+          <div class="brand">Kutibxona</div>
+          <div class="button secondary">Ilmiy va ma'naviy manba</div>
+        </nav>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="hero">
+        <div>
+          <h1>O'quv, kitob va bilimga yo'l ochuvchi portal</h1>
+          <p>
+            Kutibxona ta'lim, adabiyot va ilmiy manbalarni bir joyda birlashtiradi.
+            O'qituvchilar, o'quvchilar va kitobxonlar uchun qulay va zamonaviy makonni yaratamiz.
+          </p>
+          <div class="cta-row">
+            <a class="button primary" href="#sections">Boshqaruv bo'limlari</a>
+            <a class="button secondary" href="#about">Batafsil</a>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="mini-card">
+            <div>
+              <strong>📚 Kitobxonlar</strong>
+              <span>Adabiyotlar va manbalar</span>
+            </div>
+            <span>24/7</span>
+          </div>
+          <div class="mini-card">
+            <div>
+              <strong>👨‍🏫 O'qituvchilar</strong>
+              <span>Metodik qo'llanmalar</span>
+            </div>
+            <span>24/7</span>
+          </div>
+          <div class="mini-card">
+            <div>
+              <strong>🎒 O'quvchilar</strong>
+              <span>Darsliklar va qo'shimcha materiallar</span>
+            </div>
+            <span>24/7</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="sections" class="grid">
+        <article class="card">
+          <h3>📚 Kitobxonlar uchun</h3>
+          <p>Turli janrdagi adabiyotlar, ilmiy va ma'naviy manbalar bilan tanishish imkoniyati.</p>
+        </article>
+        <article class="card">
+          <h3>👨‍🏫 O'qituvchilar uchun</h3>
+          <p>Metodik qo'llanma, dars ishlanmalari va ta'limiy resurslar to'plami.</p>
+        </article>
+        <article class="card">
+          <h3>🎒 O'quvchilar uchun</h3>
+          <p>Foydali darsliklar, mashg'ulotlar va qo'shimcha materiallar bazasi.</p>
+        </article>
+      </section>
+
+      <section id="about" class="panel">
+        <h2 style="margin-top: 0;">Nima uchun Kutibxona?</h2>
+        <p>
+          Bu portal bilimga ehtiyojmand bo'lgan har bir kishi uchun qulay va samarali muhit yaratish maqsadida loyihalashtirilgan.
+          O'qituvchi va o'quvchi o'rtasidagi o'zaro hamkorlikni kuchaytiradi, manbalarga tezkor kirishni ta'minlaydi.
+        </p>
+      </section>
+    </main>
+
+    <footer>
+      &copy; 2026 Kutibxona. Bilim uchun ochiq platforma.
+    </footer>
+  </body>
+</html>
+

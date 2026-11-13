@@ -1,0 +1,6 @@
+.env
+/credentials/
+google-drive-service-account.json
+books/uploads/
+books/audio/
+__pycache__/

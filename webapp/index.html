@@ -386,6 +386,45 @@
       }
       .notice.visible { display: block; }
       .hidden { display: none !important; }
+      .language-picker {
+        position: fixed;
+        z-index: 10;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+        background:
+          radial-gradient(ellipse at 48% -15%, rgba(202, 231, 207, .74), transparent 48%),
+          var(--bg);
+      }
+      .language-card {
+        width: min(100%, 420px);
+        padding: 28px 22px;
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: var(--panel);
+        box-shadow: 0 20px 50px rgba(57, 87, 63, .12);
+        text-align: center;
+      }
+      .language-card h1 { margin: 0 0 20px; font-size: 22px; }
+      .language-options { display: grid; gap: 12px; }
+      .language-choice {
+        display: flex;
+        min-height: 56px;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        border: 1px solid var(--line);
+        border-radius: 15px;
+        background: #fff;
+        color: var(--text);
+        cursor: pointer;
+        font-size: 15px;
+        font-weight: 700;
+        text-align: left;
+      }
+      .language-choice:hover { border-color: var(--mint); }
+      .language-choice span { font-size: 23px; }
       .catalog {
         margin-top: 20px;
         overflow: hidden;
@@ -536,6 +575,19 @@
   </head>
   <body>
     <main class="shell">
+      <section class="language-picker hidden" id="language-picker" aria-labelledby="language-picker-title">
+        <div class="language-card">
+          <h1 id="language-picker-title">Tilni tanlang / Выберите язык</h1>
+          <div class="language-options">
+            <button class="language-choice" type="button" data-language="uz">
+              <span aria-hidden="true">🇺🇿</span> O‘zbekcha
+            </button>
+            <button class="language-choice" type="button" data-language="ru">
+              <span aria-hidden="true">🇷🇺</span> Русский
+            </button>
+          </div>
+        </div>
+      </section>
       <header class="topbar">
         <div class="brand">
           <span class="brand-mark" aria-hidden="true">
@@ -618,9 +670,13 @@
           if (telegram.setBackgroundColor) telegram.setBackgroundColor("#f3f8f2");
         }
 
-        const languageCode = telegram && telegram.initDataUnsafe && telegram.initDataUnsafe.user
-          ? telegram.initDataUnsafe.user.language_code
-          : "uz";
+        const pageParams = new URLSearchParams(window.location.search);
+        const selectedLanguage = pageParams.get("lang");
+        const languageCode = ["uz", "ru"].includes(selectedLanguage)
+          ? selectedLanguage
+          : telegram && telegram.initDataUnsafe && telegram.initDataUnsafe.user
+            ? telegram.initDataUnsafe.user.language_code
+            : "uz";
         const isRussian = languageCode === "ru";
         const content = isRussian ? {
           eyebrow: "ВХОД В МИР ЗНАНИЙ",
@@ -634,7 +690,7 @@
           back: "← Назад",
           loading: "Загружаем список книг…",
           empty: "В библиотеке пока нет PDF-книг.",
-          catalogUnavailable: "Список книг пока не подключён к серверу библиотеки.",
+          catalogUnavailable: "Откройте Mini App заново: отправьте боту /start и нажмите кнопку библиотеки.",
           catalogFailed: "Не удалось загрузить список книг. Попробуйте ещё раз.",
           assistantTitle: "AI-помощник",
           assistantNote: "Вопрос и найденные отрывки PDF передаются в Google Gemini API для ответа.",
@@ -674,7 +730,7 @@
           back: "← Orqaga",
           loading: "Kitoblar ro‘yxati yuklanmoqda…",
           empty: "Kutubxonada hozircha PDF kitoblar yo‘q.",
-          catalogUnavailable: "Kitoblar ro‘yxati kutubxona serveriga ulanmagan.",
+          catalogUnavailable: "Mini App’ni qayta oching: botga /start yuborib, kutubxona tugmasini bosing.",
           catalogFailed: "Kitoblar ro‘yxatini yuklab bo‘lmadi. Qayta urinib ko‘ring.",
           assistantTitle: "AI yordamchi",
           assistantNote: "Savol va topilgan PDF parchalari javob yaratish uchun Google Gemini API’ga uzatiladi.",
@@ -705,6 +761,17 @@
         };
 
         document.documentElement.lang = isRussian ? "ru" : "uz";
+        const languagePicker = document.getElementById("language-picker");
+        if (!["uz", "ru"].includes(selectedLanguage)) {
+          languagePicker.classList.remove("hidden");
+        }
+        languagePicker.addEventListener("click", (event) => {
+          const button = event.target.closest("button[data-language]");
+          if (!button) return;
+          const url = new URL(window.location.href);
+          url.searchParams.set("lang", button.dataset.language);
+          window.location.replace(url.href);
+        });
         document.getElementById("eyebrow").textContent = content.eyebrow;
         document.getElementById("welcome-title").innerHTML = content.title;
         document.getElementById("hero-copy").textContent = content.intro;

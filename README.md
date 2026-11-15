@@ -35,6 +35,29 @@ Telegram orqali yuklash faqat `TELEGRAM_ADMIN_IDS` ro‘yxatidagi adminlar uchun
 ochiq; har bir fayl 20 MB gacha. Kitoblarni boshqalarga ulashishdan oldin
 tarqatish huquqiga ega ekaningizni tekshiring.
 
+## Sun’iy intellekt yordamchisi
+
+Botdagi `/ai` buyrug‘i yoki menyu tugmasi orqali PDF kitobdan savol berish,
+kutubxonadagi asarlardan tavsiya olish va o‘quvchi/o‘qituvchi yordamini tanlash
+mumkin. Mini App’da ham shu imkoniyatlar mavjud. Kitob bo‘yicha javob uchun
+foydalanuvchi PDF’ni tanlaydi; bot tegishli matn parchalarini izlab, sahifa
+raqamini javobda ko‘rsatishni so‘raydi. Matnsiz skanerlangan PDF’dan qidirib
+bo‘lmaydi.
+
+Gemini API ishlatish uchun `.env` faylida `GEMINI_API_KEY` ni sozlang.
+`GEMINI_MODEL` odatda `gemini-2.5-flash` bo‘ladi. Kalitni chatga yubormang yoki
+Git’ga qo‘shmang. Mini App so‘rovi uchun `TELEGRAM_WEBAPP_API_PORT=8080` va
+HTTPS teskari proksi `/api/books` va `/api/assistant` manzillarini bot
+serverining 8080-portiga yo‘naltirishi kerak. AI endpoint faqat ruxsat etilgan
+origin va Telegram tomonidan imzolangan Mini App ma’lumotlari bilan ishlaydi.
+Bot tarafidagi `/ai` uchun API-port shart emas.
+
+Javob yaratish uchun foydalanuvchining savoli, tavsiya rejimida kitob nomlari,
+yoki tanlangan PDF’dan topilgan qisqa parchalar Google Gemini API’ga uzatiladi.
+Butun PDF jo‘natilmaydi. Savollar serverda saqlanmaydi; har bir foydalanuvchi
+uchun bir daqiqada 5 ta so‘rov bilan cheklangan. AI javoblarini tekshirib
+foydalaning.
+
 ## Telegram 3D App Launcher
 
 Bot menyusidagi launcher Telegram ichida kitoblar, audiokitoblar, o‘qituvchi,
@@ -55,6 +78,22 @@ Yoqish uchun:
 
 Bot menyusidagi “🚀 3D kutubxona” tugmasi `TELEGRAM_WEBAPP_URL` to‘g‘ri
 sozlangandagina ko‘rinadi. Maxsus domen kerak emas.
+
+Kitob nomlari va Mini App’dagi AI yordamchisi uchun botdagi `.env` faylida
+`TELEGRAM_WEBAPP_API_PORT=8080` va `TELEGRAM_WEBAPP_ORIGIN=https://shbmasayev-hub.github.io`
+bo‘lsin. HTTPS teskari proksi yoki bot hosting xizmatida `/api/books` manzilini
+botning 8080-portiga yo‘naltiring. Mini App manziliga ochiq API manzilini ham
+qo‘shing, masalan:
+
+```env
+TELEGRAM_WEBAPP_URL=https://shbmasayev-hub.github.io/Kutibxona/webapp/?api=https%3A%2F%2Fapi.example.uz
+```
+
+Ilova API’dan kitob nomlari va identifikatorlarini oladi; kitob tanlanganda
+bot PDF’ni Telegram chatga yuboradi. Kitoblar ro‘yxati ochiq, AI endpoint esa
+faqat Telegram imzosi tekshirilgan so‘rovlarni qabul qiladi. PDF’lar Mini App
+serveridan berilmaydi. GitHub Pages bot API’sini ishga tushirmaydi; kitoblar
+va AI ishlashi uchun bot API’ga ommaviy HTTPS manzil kerak.
 
 ## O‘quvchilar bo‘limi
 

@@ -1,14 +1,28 @@
 import io
+import hashlib
+import hmac
 import json
 import logging
 import os
+import re
+import time
+from collections import defaultdict, deque
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from threading import Lock, Thread
+from urllib.parse import parse_qsl, urlsplit
 
 import telebot
 from telebot import apihelper, types
 from requests.exceptions import RequestException
 
+from ai_assistant import (
+    MAX_QUESTION_LENGTH,
+    AssistantConfigurationError,
+    AssistantError,
+    BookTextNotFoundError,
+    generate_ai_answer,
+)
 from audio_library import (
     SUPPORTED_AUDIO_EXTENSIONS,
     AudioLibraryError,
@@ -30,6 +44,16 @@ TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 bot = telebot.TeleBot(TOKEN) if TOKEN else None
 user_lang = {}
 TELEGRAM_WEBAPP_URL = os.getenv("TELEGRAM_WEBAPP_URL", "").strip()
+TELEGRAM_WEBAPP_ORIGIN = os.getenv(
+    "TELEGRAM_WEBAPP_ORIGIN",
+    "https://shbmasayev-hub.github.io",
+).strip().rstrip("/")
+TELEGRAM_WEBAPP_API_PORT = os.getenv("TELEGRAM_WEBAPP_API_PORT", "").strip()
+ai_sessions = {}
+_AI_REQUESTS = defaultdict(deque)
+_AI_REQUESTS_LOCK = Lock()
+_AI_RATE_LIMIT = 5
+_AI_RATE_WINDOW_SECONDS = 60
 
 LANGUAGE_OPTIONS = {
     "uz": "🇺🇿 O‘zbekcha",
@@ -43,7 +67,7 @@ SECTION_MESSAGES = {
         "👥 Umumiy resurslar": "Ta’lim va mutolaa uchun barcha foydalanuvchilarga mo‘ljallangan materiallar.",
         "ℹ️ Kutubxona haqida": "Kutibxona — kitob va audiokitoblarni bir joyda topish, o‘qish va tinglash uchun raqamli makon.",
         "✉️ Aloqa": "Aloqa ma’lumotlari tez orada yangilanadi. E’tiboringiz uchun rahmat.",
-        "❔ Yordam": "Qisqa yo‘riqnoma:\n📚 Kitoblar — tanlangan asar PDF ko‘rinishida yuboriladi.\n🎧 Audiokitoblar — audio Telegram pleerida ochiladi.\n\nAsosiy menyu: /menu\nMa’lumotlar haqida: /privacy",
+        "❔ Yordam": "Qisqa yo‘riqnoma:\n📚 Kitoblar — tanlangan asar PDF ko‘rinishida yuboriladi.\n🎧 Audiokitoblar — audio Telegram pleerida ochiladi.\n🤖 AI yordamchi — kitobdan javob, tavsiya va ta’limiy yordam.\n\nAsosiy menyu: /menu · AI: /ai\nMa’lumotlar haqida: /privacy",
     },
     "ru": {
         "👩‍🏫 Учителям": "Методические пособия и материалы для подготовки к занятиям.",
@@ -51,7 +75,7 @@ SECTION_MESSAGES = {
         "👥 Общие ресурсы": "Материалы для обучения и чтения, полезные всем пользователям.",
         "ℹ️ О библиотеке": "Kutibxona — цифровая библиотека, где удобно находить, читать и слушать книги.",
         "✉️ Связаться": "Контактная информация скоро появится. Спасибо за интерес к библиотеке.",
-        "❔ Помощь": "Краткая инструкция:\n📚 Книги — выбранное произведение отправляется в PDF.\n🎧 Аудиокниги — аудио откроется в плеере Telegram.\n\nГлавное меню: /menu\nО данных: /privacy",
+        "❔ Помощь": "Краткая инструкция:\n📚 Книги — выбранное произведение отправляется в PDF.\n🎧 Аудиокниги — аудио откроется в плеере Telegram.\n🤖 AI-помощник — ответы по книгам, рекомендации и помощь в учёбе.\n\nГлавное меню: /menu · AI: /ai\nО данных: /privacy",
     },
 }
 
@@ -61,14 +85,19 @@ PRIVACY_MESSAGES = {
         "Bot foydalanuvchilarning shaxsiy ma’lumotlari yoki xabarlarini alohida bazaga saqlamaydi. "
         "Til tanlovi bot ishlayotgan paytda xotirada turadi va qayta ishga tushganda o‘chadi. "
         "Admin yuklagan kitob va audiokitoblar bot serveridagi kutubxona papkasida saqlanadi "
-        "va foydalanuvchilarga yuborilishi mumkin. Xabarlar Telegram orqali qayta ishlanadi."
+        "va foydalanuvchilarga yuborilishi mumkin. AI ishlatilganda savol, tavsiya uchun kitob "
+        "nomlari va tanlangan PDF’dan topilgan qisqa parchalar javob yaratish uchun Google Gemini "
+        "API’ga uzatiladi; ularning "
+        "ma’lumot siyosati qo‘llanadi. Xabarlar Telegram orqali qayta ishlanadi."
     ),
     "ru": (
         "🔒 О данных\n\n"
         "Бот не сохраняет личные данные пользователей или их сообщения в отдельной базе. "
         "Выбранный язык хранится в памяти, пока бот запущен, и сбрасывается после перезапуска. "
         "Книги и аудиокниги, загруженные администратором, хранятся в библиотеке на сервере бота "
-        "и могут отправляться пользователям. Сообщения обрабатываются через Telegram."
+        "и могут отправляться пользователям. При использовании AI вопрос, названия книг для "
+        "рекомендации и найденные короткие отрывки PDF передаются в Google Gemini API; действует политика "
+        "обработки данных Google. Сообщения обрабатываются через Telegram."
     ),
 }
 
@@ -708,6 +737,294 @@ def send_teacher_guide_pdf(callback, level):
         )
 
 
+def list_available_books():
+    local_books = list_local_pdfs()
+    books = [{**item, "source": "local"} for item in local_books]
+    drive_error = None
+    credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
+    if credentials_path and folder_id and Path(credentials_path).is_file():
+        try:
+            books.extend(
+                {**item, "source": "drive"}
+                for item in list_pdfs()
+            )
+        except DriveLibraryError as error:
+            if not books:
+                raise
+            drive_error = error
+            logger.warning("Could not list Google Drive books; using local books: %s", error)
+    return books, drive_error
+
+
+def validate_telegram_webapp_init_data(init_data, now=None):
+    if not TOKEN or not isinstance(init_data, str) or not init_data or len(init_data) > 4096:
+        return None
+
+    try:
+        pairs = parse_qsl(init_data, keep_blank_values=True, strict_parsing=True)
+    except ValueError:
+        return None
+    values = dict(pairs)
+    if len(values) != len(pairs):
+        return None
+
+    received_hash = values.pop("hash", "")
+    if not re.fullmatch(r"[0-9a-f]{64}", received_hash):
+        return None
+    data_check_string = "\n".join(
+        f"{key}={value}" for key, value in sorted(values.items())
+    )
+    secret_key = hmac.new(
+        b"WebAppData",
+        TOKEN.encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
+    expected_hash = hmac.new(
+        secret_key,
+        data_check_string.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(received_hash, expected_hash):
+        return None
+
+    try:
+        auth_date = int(values.get("auth_date", ""))
+        user = json.loads(values.get("user", ""))
+    except (TypeError, ValueError):
+        return None
+    current_time = int(time.time()) if now is None else int(now)
+    if auth_date > current_time + 30 or current_time - auth_date > 86400:
+        return None
+    user_id = user.get("id") if isinstance(user, dict) else None
+    if isinstance(user_id, bool) or not isinstance(user_id, int) or user_id < 1:
+        return None
+    return user_id
+
+
+def _consume_ai_rate_limit(user_id, now=None):
+    if isinstance(user_id, bool) or not isinstance(user_id, int) or user_id < 1:
+        return False
+    current_time = time.monotonic() if now is None else now
+    with _AI_REQUESTS_LOCK:
+        requests_for_user = _AI_REQUESTS[user_id]
+        while (
+            requests_for_user
+            and current_time - requests_for_user[0] >= _AI_RATE_WINDOW_SECONDS
+        ):
+            requests_for_user.popleft()
+        if len(requests_for_user) >= _AI_RATE_LIMIT:
+            return False
+        requests_for_user.append(current_time)
+        return True
+
+
+def _localized_ai_error(error, lang):
+    if lang == "ru":
+        if isinstance(error, AssistantConfigurationError):
+            return "AI-помощник ещё не настроен. Владелец должен добавить ключ Gemini на сервере."
+        if isinstance(error, BookTextNotFoundError):
+            return "Не удалось найти подходящий отрывок в PDF. Попробуйте переформулировать вопрос."
+        if isinstance(error, AssistantError):
+            return "AI-помощник временно не может ответить. Попробуйте позже."
+        return "Не удалось прочитать выбранную книгу."
+    if isinstance(error, AssistantConfigurationError):
+        return "AI yordamchi hali sozlanmagan. Bot egasi serverga Gemini kalitini kiritishi kerak."
+    if isinstance(error, BookTextNotFoundError):
+        return "PDF matnidan mos parcha topilmadi. Savolni boshqacha ifodalab ko‘ring."
+    if isinstance(error, AssistantError):
+        return "AI yordamchi hozir javob bera olmadi. Birozdan keyin qayta urinib ko‘ring."
+    return "Tanlangan kitobni o‘qib bo‘lmadi."
+
+
+class BookCatalogRequestHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path.split("?", 1)[0] != "/api/books":
+            self.send_error(404)
+            return
+
+        try:
+            books, drive_error = list_available_books()
+        except (DriveLibraryError, LocalLibraryError):
+            logger.exception("Could not provide the Mini App book catalog")
+            self._send_json(
+                503,
+                {"error": "Kitoblar ro‘yxatini hozircha olib bo‘lmadi."},
+            )
+            return
+
+        if drive_error:
+            logger.warning("Mini App book catalog is missing Google Drive books: %s", drive_error)
+        self._send_json(
+            200,
+            {
+                "books": [
+                    {"id": book["id"], "name": book["name"], "source": book["source"]}
+                    for book in books
+                ]
+            },
+        )
+
+    def do_OPTIONS(self):
+        path = self.path.split("?", 1)[0]
+        origin = self.headers.get("Origin", "").rstrip("/")
+        if path != "/api/assistant" or origin != TELEGRAM_WEBAPP_ORIGIN:
+            self.send_error(403)
+            return
+
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", TELEGRAM_WEBAPP_ORIGIN)
+        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+        self.send_header(
+            "Access-Control-Allow-Headers",
+            "Content-Type, X-Telegram-Init-Data",
+        )
+        self.send_header("Access-Control-Max-Age", "600")
+        self.send_header("Vary", "Origin")
+        self.end_headers()
+
+    def do_POST(self):
+        if self.path.split("?", 1)[0] != "/api/assistant":
+            self.send_error(404)
+            return
+
+        origin = self.headers.get("Origin", "").rstrip("/")
+        if origin != TELEGRAM_WEBAPP_ORIGIN:
+            self._send_json(403, {"error": "Manba ruxsat etilmagan."})
+            return
+        if self.headers.get_content_type() != "application/json":
+            self._send_json(415, {"error": "JSON so‘rovi yuborilishi kerak."})
+            return
+
+        try:
+            content_length = int(self.headers.get("Content-Length", ""))
+        except ValueError:
+            self._send_json(400, {"error": "So‘rov hajmini aniqlab bo‘lmadi."})
+            return
+        if not 1 <= content_length <= 8192:
+            self._send_json(413, {"error": "So‘rov hajmi ruxsat etilgan chegaradan katta."})
+            return
+
+        try:
+            payload = json.loads(self.rfile.read(content_length).decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._send_json(400, {"error": "So‘rov JSON formatida emas."})
+            return
+        if not isinstance(payload, dict):
+            self._send_json(400, {"error": "So‘rov formati noto‘g‘ri."})
+            return
+
+        user_id = validate_telegram_webapp_init_data(
+            self.headers.get("X-Telegram-Init-Data", "")
+        )
+        if user_id is None:
+            self._send_json(401, {"error": "Telegram foydalanuvchisini tasdiqlab bo‘lmadi."})
+            return
+        if not _consume_ai_rate_limit(user_id):
+            self._send_json(429, {"error": "AI so‘rovlari limiti tugadi. Birozdan keyin urinib ko‘ring."})
+            return
+
+        question = payload.get("question")
+        mode = payload.get("mode")
+        lang = payload.get("language", "uz")
+        if (
+            not isinstance(question, str)
+            or not question.strip()
+            or len(question.strip()) > MAX_QUESTION_LENGTH
+            or not isinstance(mode, str)
+            or mode not in {"book_qa", "recommend", "study"}
+            or not isinstance(lang, str)
+            or lang not in {"uz", "ru"}
+        ):
+            self._send_json(400, {"error": "Savol yoki yordamchi turi noto‘g‘ri."})
+            return
+
+        try:
+            books, _ = list_available_books()
+            selected_book = None
+            if mode == "book_qa":
+                source = payload.get("book_source")
+                book_id = payload.get("book_id")
+                if (
+                    not isinstance(source, str)
+                    or source not in {"local", "drive"}
+                    or not isinstance(book_id, str)
+                ):
+                    self._send_json(400, {"error": "Savol uchun kitob tanlanmagan."})
+                    return
+                selected_book = next(
+                    (
+                        book
+                        for book in books
+                        if book["source"] == source and book["id"] == book_id
+                    ),
+                    None,
+                )
+                if selected_book is None:
+                    self._send_json(400, {"error": "Tanlangan kitob katalogda topilmadi."})
+                    return
+            answer = generate_ai_answer(
+                question.strip(),
+                mode,
+                lang,
+                books,
+                selected_book=selected_book,
+            )
+        except (DriveLibraryError, LocalLibraryError) as error:
+            logger.warning("Could not prepare AI request from the library: %s", error)
+            self._send_json(
+                503,
+                {"error": _localized_ai_error(error, lang)},
+            )
+            return
+        except AssistantConfigurationError as error:
+            logger.warning("Gemini assistant configuration error: %s", error)
+            self._send_json(503, {"error": _localized_ai_error(error, lang)})
+            return
+        except BookTextNotFoundError as error:
+            self._send_json(422, {"error": _localized_ai_error(error, lang)})
+            return
+        except AssistantError as error:
+            logger.warning("Gemini assistant request failed: %s", error)
+            self._send_json(502, {"error": _localized_ai_error(error, lang)})
+            return
+
+        self._send_json(200, {"answer": answer})
+
+    def _send_json(self, status, payload):
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        origin = self.headers.get("Origin", "").rstrip("/")
+        if origin == TELEGRAM_WEBAPP_ORIGIN:
+            self.send_header("Access-Control-Allow-Origin", TELEGRAM_WEBAPP_ORIGIN)
+            self.send_header("Vary", "Origin")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format_string, *args):
+        logger.info("Mini App API: " + format_string, *args)
+
+
+def start_webapp_api():
+    if not TELEGRAM_WEBAPP_API_PORT:
+        return None
+
+    try:
+        port = int(TELEGRAM_WEBAPP_API_PORT)
+    except ValueError as error:
+        raise ValueError("TELEGRAM_WEBAPP_API_PORT must be a valid TCP port.") from error
+    if not 1 <= port <= 65535:
+        raise ValueError("TELEGRAM_WEBAPP_API_PORT must be between 1 and 65535.")
+
+    server = ThreadingHTTPServer(("0.0.0.0", port), BookCatalogRequestHandler)
+    Thread(target=server.serve_forever, name="webapp-api", daemon=True).start()
+    logger.info("Mini App book catalog API listening on port %s", port)
+    return server
+
+
 def show_book_menu(chat_id, lang):
     if bot is None:
         return
@@ -716,31 +1033,23 @@ def show_book_menu(chat_id, lang):
     show_section_navigation(chat_id, section_title, lang)
 
     try:
-        local_files = list_local_pdfs()
+        pdf_files, drive_error = list_available_books()
     except LocalLibraryError as error:
         heading = "Mahalliy kutubxona xatosi:" if lang == "uz" else "Ошибка локальной библиотеки:"
         bot.send_message(chat_id, f"{heading}\n{error}")
         return
+    except DriveLibraryError as error:
+        heading = "Google Drive sozlamasi:" if lang == "uz" else "Настройка библиотеки Google Drive:"
+        bot.send_message(chat_id, f"{heading}\n{error}")
+        return
 
-    pdf_files = [{**item, "source": "local"} for item in local_files]
-    credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-    folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
-    if credentials_path and folder_id and Path(credentials_path).is_file():
-        try:
-            drive_files = list_pdfs()
-        except DriveLibraryError as error:
-            if not pdf_files:
-                heading = "Google Drive sozlamasi:" if lang == "uz" else "Настройка Google Drive:"
-                bot.send_message(chat_id, f"{heading}\n{error}")
-                return
-            warning = (
-                f"Drive’dan kitoblarni olib bo‘lmadi; yuklangan kitoblar ko‘rsatilmoqda.\n{error}"
-                if lang == "uz"
-                else f"Не удалось загрузить книги с Drive; показаны загруженные книги.\n{error}"
-            )
-            bot.send_message(chat_id, warning)
-        else:
-            pdf_files.extend({**item, "source": "drive"} for item in drive_files)
+    if drive_error:
+        warning = (
+            f"Drive’dan kitoblarni olib bo‘lmadi; yuklangan kitoblar ko‘rsatilmoqda.\n{drive_error}"
+            if lang == "uz"
+            else f"Не удалось загрузить книги с Drive; показаны загруженные книги.\n{drive_error}"
+        )
+        bot.send_message(chat_id, warning)
 
     if not pdf_files:
         message = (
@@ -804,6 +1113,13 @@ def handle_book_callback(callback):
         return
 
     source, file_id = callback.data.split(":", 1)
+    if source not in {"drive", "local"}:
+        bot.answer_callback_query(callback.id)
+        return
+    send_book_to_chat(chat_id, lang, source, file_id, callback.id)
+
+
+def send_book_to_chat(chat_id, lang, source, file_id, callback_id=None):
     try:
         document = (
             download_local_pdf(file_id)
@@ -811,10 +1127,11 @@ def handle_book_callback(callback):
             else download_pdf(file_id)
         )
     except (DriveLibraryError, LocalLibraryError) as error:
-        bot.answer_callback_query(
-            callback.id,
-            "Yuklab bo'lmadi." if lang == "uz" else "Не удалось загрузить.",
-        )
+        if callback_id is not None:
+            bot.answer_callback_query(
+                callback_id,
+                "Yuklab bo'lmadi." if lang == "uz" else "Не удалось загрузить.",
+            )
         back_label = "⬅️ Kitoblar ro'yxati" if lang == "uz" else "⬅️ К списку книг"
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton(back_label, callback_data="books:list"))
@@ -826,7 +1143,8 @@ def handle_book_callback(callback):
         )
         return
 
-    bot.answer_callback_query(callback.id)
+    if callback_id is not None:
+        bot.answer_callback_query(callback_id)
     try:
         bot.send_document(chat_id, document, caption=document.name, timeout=120)
     except (apihelper.ApiException, RequestException):
@@ -932,6 +1250,194 @@ def handle_audio_callback(callback):
         bot.send_message(chat_id, message)
 
 
+def show_ai_menu(chat_id, lang):
+    if bot is None:
+        return
+
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    if lang == "ru":
+        markup.add(
+            types.InlineKeyboardButton("📖 Спросить по книге", callback_data="ai:books"),
+            types.InlineKeyboardButton("✨ Подобрать книгу", callback_data="ai:recommend"),
+            types.InlineKeyboardButton("🎓 Помощь в учёбе и преподавании", callback_data="ai:study"),
+            types.InlineKeyboardButton("⬅️ Главное меню", callback_data="ai:back"),
+        )
+        prompt = (
+            "🤖 AI-помощник умеет отвечать по выбранному PDF, подбирать книги "
+            "и помогать ученикам и учителям. Выберите задачу:"
+        )
+    else:
+        markup.add(
+            types.InlineKeyboardButton("📖 Savolni kitobdan so‘rash", callback_data="ai:books"),
+            types.InlineKeyboardButton("✨ Kitob tavsiya qilish", callback_data="ai:recommend"),
+            types.InlineKeyboardButton("🎓 O‘qish va darsga yordam", callback_data="ai:study"),
+            types.InlineKeyboardButton("⬅️ Asosiy menyu", callback_data="ai:back"),
+        )
+        prompt = (
+            "🤖 AI yordamchi tanlangan PDF matnidan javob topadi, kitob tavsiya qiladi "
+            "va o‘quvchi hamda o‘qituvchilarga yordam beradi. Vazifani tanlang:"
+        )
+    bot.send_message(chat_id, prompt, reply_markup=markup)
+
+
+def _send_ai_answer(chat_id, question, session, user_id):
+    lang = session.get("lang", user_lang.get(chat_id, "uz"))
+    if not _consume_ai_rate_limit(user_id):
+        bot.send_message(
+            chat_id,
+            "AI so‘rovlari limiti tugadi. Birozdan keyin qayta urinib ko‘ring."
+            if lang == "uz"
+            else "Лимит AI-запросов исчерпан. Попробуйте позже.",
+        )
+        return
+
+    try:
+        books, _ = list_available_books()
+        answer = generate_ai_answer(
+            question,
+            session["mode"],
+            lang,
+            books,
+            selected_book=session.get("book"),
+        )
+    except (AssistantError, DriveLibraryError, LocalLibraryError) as error:
+        bot.send_message(chat_id, _localized_ai_error(error, lang))
+        return
+
+    remaining = answer.strip()
+    while remaining:
+        if len(remaining) <= 4000:
+            chunk, remaining = remaining, ""
+        else:
+            split_at = remaining.rfind("\n", 0, 4000)
+            if split_at < 1:
+                split_at = 4000
+            chunk, remaining = remaining[:split_at], remaining[split_at:].lstrip()
+        bot.send_message(chat_id, chunk)
+
+
+def handle_ai_callback(callback):
+    if bot is None or callback.message is None:
+        return
+
+    chat_id = callback.message.chat.id
+    lang = user_lang.get(chat_id, "uz")
+    data = callback.data or ""
+    if getattr(callback.message.chat, "type", "private") != "private":
+        bot.answer_callback_query(
+            callback.id,
+            "Shaxsiy chatda oching." if lang == "uz" else "Откройте в личном чате.",
+        )
+        return
+
+    if data == "ai:back":
+        ai_sessions.pop(chat_id, None)
+        bot.answer_callback_query(callback.id)
+        show_main_menu(
+            chat_id,
+            lang,
+            allow_webapp=getattr(callback.message.chat, "type", "private") == "private",
+        )
+        return
+    if data in {"ai:recommend", "ai:study"}:
+        ai_sessions[chat_id] = {
+            "mode": "recommend" if data == "ai:recommend" else "study",
+            "lang": lang,
+        }
+        bot.answer_callback_query(callback.id)
+        prompt = (
+            "Qaysi kitobni yoqtirishingiz yoki qaysi mavzuda yordam kerakligini yozing. "
+            "Savol 1200 belgidan oshmasin."
+            if lang == "uz"
+            else "Напишите, какую книгу вы ищете или по какой теме нужна помощь. "
+            "Вопрос — не более 1200 символов."
+        )
+        bot.send_message(chat_id, prompt)
+        return
+    if data == "ai:books":
+        try:
+            books, _ = list_available_books()
+        except (DriveLibraryError, LocalLibraryError) as error:
+            bot.answer_callback_query(callback.id)
+            bot.send_message(chat_id, _localized_ai_error(error, lang))
+            return
+        if not books:
+            bot.answer_callback_query(callback.id)
+            bot.send_message(
+                chat_id,
+                "Kutubxonada hozircha PDF kitoblar yo‘q."
+                if lang == "uz"
+                else "В библиотеке пока нет PDF-книг.",
+            )
+            return
+
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for book in books[:100]:
+            source_code = "l" if book["source"] == "local" else "d"
+            callback_data = f"aib:{source_code}:{book['id']}"
+            title = book["name"]
+            if len(title) > 61:
+                title = title[:58] + "..."
+            markup.add(
+                types.InlineKeyboardButton(
+                    title,
+                    callback_data=callback_data,
+                )
+            )
+        markup.add(
+            types.InlineKeyboardButton(
+                "⬅️ Orqaga" if lang == "uz" else "⬅️ Назад",
+                callback_data="ai:back",
+            )
+        )
+        bot.answer_callback_query(callback.id)
+        bot.send_message(
+            chat_id,
+            "Savol bermoqchi bo‘lgan kitobni tanlang:"
+            if lang == "uz"
+            else "Выберите книгу для вопроса:",
+            reply_markup=markup,
+        )
+        return
+    if data.startswith("aib:"):
+        parts = data.split(":", 2)
+        if len(parts) != 3 or parts[1] not in {"l", "d"}:
+            bot.answer_callback_query(callback.id)
+            return
+        source = "local" if parts[1] == "l" else "drive"
+        try:
+            books, _ = list_available_books()
+        except (DriveLibraryError, LocalLibraryError) as error:
+            bot.answer_callback_query(callback.id)
+            bot.send_message(chat_id, _localized_ai_error(error, lang))
+            return
+        book = next(
+            (
+                item
+                for item in books
+                if item["source"] == source and item["id"] == parts[2]
+            ),
+            None,
+        )
+        if book is None:
+            bot.answer_callback_query(
+                callback.id,
+                "Kitob topilmadi." if lang == "uz" else "Книга не найдена.",
+            )
+            return
+        ai_sessions[chat_id] = {"mode": "book_qa", "book": book, "lang": lang}
+        bot.answer_callback_query(callback.id)
+        bot.send_message(
+            chat_id,
+            f"“{book['name']}” kitobi haqida savolingizni yozing (1200 belgigacha)."
+            if lang == "uz"
+            else f"Задайте вопрос о книге «{book['name']}» (до 1200 символов).",
+        )
+        return
+
+    bot.answer_callback_query(callback.id)
+
+
 def show_main_menu(chat_id, lang, allow_webapp=True):
     if bot is None:
         return
@@ -949,6 +1455,7 @@ def show_main_menu(chat_id, lang, allow_webapp=True):
         markup.add(
             types.KeyboardButton("📚 Kitoblar"),
             types.KeyboardButton("🎧 Audiokitoblar"),
+            types.KeyboardButton("🤖 AI yordamchi"),
             types.KeyboardButton("👩‍🏫 O‘qituvchilar"),
             types.KeyboardButton("🎒 O‘quvchilar"),
             types.KeyboardButton("👥 Umumiy resurslar"),
@@ -966,6 +1473,7 @@ def show_main_menu(chat_id, lang, allow_webapp=True):
         markup.add(
             types.KeyboardButton("📚 Книги"),
             types.KeyboardButton("🎧 Аудиокниги"),
+            types.KeyboardButton("🤖 AI-помощник"),
             types.KeyboardButton("👩‍🏫 Учителям"),
             types.KeyboardButton("🎒 Ученикам"),
             types.KeyboardButton("👥 Общие ресурсы"),
@@ -987,11 +1495,33 @@ def handle_commands(message):
 
     chat_id = message.chat.id
     text = message.text
+    if text.startswith("/"):
+        ai_sessions.pop(chat_id, None)
 
+    if text == "/ai":
+        if getattr(message.chat, "type", "private") != "private":
+            bot.send_message(
+                chat_id,
+                "AI yordamchidan bot bilan shaxsiy chatda foydalaning."
+                if user_lang.get(chat_id, "uz") == "uz"
+                else "Используйте AI-помощник в личном чате с ботом.",
+            )
+            return True
+        show_ai_menu(chat_id, user_lang.get(chat_id, "uz"))
+        return True
+    if text == "/cancel":
+        ai_sessions.pop(chat_id, None)
+        bot.send_message(
+            chat_id,
+            "AI so‘rovi bekor qilindi." if user_lang.get(chat_id, "uz") == "uz" else "Запрос AI отменён.",
+        )
+        return True
     if text == "/start":
+        ai_sessions.pop(chat_id, None)
         show_language_menu(chat_id)
         return True
     if text == "/menu":
+        ai_sessions.pop(chat_id, None)
         lang = user_lang.get(chat_id, "uz")
         show_main_menu(chat_id, lang, allow_webapp=message.chat.type == "private")
         return True
@@ -1113,6 +1643,67 @@ def handle_messages(message):
     if handle_commands(message):
         return
 
+    if text in {"🤖 AI yordamchi", "🤖 AI-помощник"}:
+        ai_sessions.pop(chat_id, None)
+        if getattr(message.chat, "type", "private") != "private":
+            bot.send_message(
+                chat_id,
+                "AI yordamchidan bot bilan shaxsiy chatda foydalaning."
+                if user_lang.get(chat_id, "uz") == "uz"
+                else "Используйте AI-помощник в личном чате с ботом.",
+            )
+            return
+        show_ai_menu(chat_id, user_lang.get(chat_id, "uz"))
+        return
+
+    navigation_texts = {
+        "⬅️ Asosiy menyu",
+        "⬅️ Главное меню",
+        "📚 Kitoblar",
+        "📚 Книги",
+        "📚 Kitobxonlar uchun",
+        "📚 Для читателей",
+        "🎧 Audiokitoblar",
+        "🎧 Audio kitoblar",
+        "🎧 Аудиокниги",
+        "👩‍🏫 O‘qituvchilar",
+        "👩‍🏫 Учителям",
+        "🎒 O‘quvchilar",
+        "🎒 Ученикам",
+        "👥 Umumiy resurslar",
+        "👥 Общие ресурсы",
+        "ℹ️ Kutubxona haqida",
+        "ℹ️ О библиотеке",
+        "✉️ Aloqa",
+        "✉️ Связаться",
+        "❔ Yordam",
+        "❔ Помощь",
+        "🌐 Tilni o‘zgartirish",
+        "🔄 Tilni o'zgartirish",
+        "🌐 Сменить язык",
+        "🔄 Сменить язык",
+        "🇺🇿 O‘zbekcha",
+        "🇺🇿 O'zbek tili",
+        "🇺🇿 O‘zbek tili",
+        "🇷🇺 Русский язык",
+    }
+    if text in navigation_texts:
+        ai_sessions.pop(chat_id, None)
+    elif chat_id in ai_sessions:
+        if len(text.strip()) > MAX_QUESTION_LENGTH:
+            bot.send_message(
+                chat_id,
+                f"Savol {MAX_QUESTION_LENGTH} belgidan oshmasin."
+                if user_lang.get(chat_id, "uz") == "uz"
+                else f"Вопрос не должен превышать {MAX_QUESTION_LENGTH} символов.",
+            )
+            return
+        session = ai_sessions.pop(chat_id)
+        user = getattr(message, "from_user", None)
+        user_id = getattr(user, "id", None) or chat_id
+        _send_ai_answer(chat_id, text.strip(), session, user_id)
+        return
+
     if text in {"🇺🇿 O‘zbekcha", "🇺🇿 O'zbek tili", "🇺🇿 O‘zbek tili"}:
         user_lang[chat_id] = "uz"
         show_main_menu(chat_id, "uz", allow_webapp=message.chat.type == "private")
@@ -1166,9 +1757,29 @@ def handle_webapp_data(message):
         )
         return
 
-    section = payload.get("section") if isinstance(payload, dict) else None
-    if not isinstance(payload, dict) or payload.get("action") != "open":
-        section = None
+    if not isinstance(payload, dict):
+        payload = {}
+
+    action = payload.get("action")
+    if action == "download_book":
+        source = payload.get("source")
+        file_id = payload.get("id")
+        if (
+            not isinstance(source, str)
+            or source not in {"drive", "local"}
+            or not isinstance(file_id, str)
+        ):
+            bot.send_message(
+                chat_id,
+                "Kitob tanlovi noto‘g‘ri. Ro‘yxatni yangilab qayta urinib ko‘ring."
+                if lang == "uz"
+                else "Неверный выбор книги. Обновите список и попробуйте снова.",
+            )
+            return
+        send_book_to_chat(chat_id, lang, source, file_id)
+        return
+
+    section = payload.get("section") if action == "open" else None
     if not isinstance(section, str):
         section = None
 
@@ -1209,7 +1820,7 @@ def validate_telegram_webapp_url():
 
 if bot is not None:
     bot.message_handler(
-        commands=["start", "menu", "help", "privacy", "lang", "language", "myid"]
+        commands=["start", "menu", "help", "privacy", "lang", "language", "myid", "ai", "cancel"]
     )(handle_commands)
     bot.message_handler(content_types=["text"])(handle_messages)
     bot.message_handler(content_types=["web_app_data"])(handle_webapp_data)
@@ -1228,6 +1839,10 @@ if bot is not None:
     )(handle_audio_callback)
     bot.callback_query_handler(
         func=lambda callback: callback.data
+        and callback.data.startswith(("ai:", "aib:"))
+    )(handle_ai_callback)
+    bot.callback_query_handler(
+        func=lambda callback: callback.data
         and callback.data.startswith(("book:", "books:", "drive:", "local:"))
     )(
         handle_book_callback
@@ -1239,6 +1854,7 @@ def main():
         raise RuntimeError("Set the TELEGRAM_BOT_TOKEN environment variable before running the bot.")
     validate_telegram_webapp_url()
     configure_bot_commands()
+    start_webapp_api()
     bot.infinity_polling()
 
 
@@ -1255,6 +1871,7 @@ def configure_bot_commands():
                 types.BotCommand("help", "Yordam"),
                 types.BotCommand("lang", "Tilni tanlash"),
                 types.BotCommand("privacy", "Ma’lumotlar haqida"),
+                types.BotCommand("ai", "Sun’iy intellekt yordamchisi"),
             ],
         ),
         (
@@ -1265,6 +1882,7 @@ def configure_bot_commands():
                 types.BotCommand("help", "Помощь"),
                 types.BotCommand("lang", "Выбрать язык"),
                 types.BotCommand("privacy", "О данных"),
+                types.BotCommand("ai", "AI-помощник"),
             ],
         ),
     )

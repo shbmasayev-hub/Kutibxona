@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && mkdir -p /app/books/uploads /app/books/audio \
     && chown -R bot:bot /app
 
-COPY --chown=bot:bot main.py local_library.py audio_library.py drive_library.py ./
+COPY --chown=bot:bot main.py local_library.py audio_library.py drive_library.py ai_assistant.py ./
 COPY --chown=bot:bot resources /app/resources
 
 USER bot

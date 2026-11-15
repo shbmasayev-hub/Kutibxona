@@ -47,13 +47,17 @@ class BotBookMenuTests(unittest.TestCase):
     def setUp(self):
         self.original_bot = main.bot
         self.original_lang = main.user_lang.copy()
+        self.original_ai_sessions = main.ai_sessions.copy()
         main.bot = BotStub()
         main.user_lang[123] = "uz"
+        main.ai_sessions.clear()
 
     def tearDown(self):
         main.bot = self.original_bot
         main.user_lang.clear()
         main.user_lang.update(self.original_lang)
+        main.ai_sessions.clear()
+        main.ai_sessions.update(self.original_ai_sessions)
 
     @patch(
         "main.list_local_pdfs",
@@ -219,9 +223,10 @@ class BotBookMenuTests(unittest.TestCase):
         self.assertIsNone(default_language)
         self.assertEqual(russian_language, "ru")
         self.assertIn("privacy", [command.command for command in default_commands])
+        self.assertIn("ai", [command.command for command in default_commands])
         self.assertEqual(
             [command.command for command in russian_commands],
-            ["start", "menu", "help", "lang", "privacy"],
+            ["start", "menu", "help", "lang", "privacy", "ai"],
         )
 
     @patch.dict(os.environ, {"TELEGRAM_ADMIN_IDS": "123"})
@@ -248,6 +253,87 @@ class BotBookMenuTests(unittest.TestCase):
         markup = main.bot.messages[-1][2]["reply_markup"]
         labels = [button["text"] for row in markup.keyboard for button in row]
         self.assertIn("🎧 Audiokitoblar", labels)
+
+    def test_main_menu_contains_ai_button(self):
+        main.show_main_menu(123, "uz")
+
+        markup = main.bot.messages[-1][2]["reply_markup"]
+        labels = [button["text"] for row in markup.keyboard for button in row]
+        self.assertIn("🤖 AI yordamchi", labels)
+
+    def test_ai_command_opens_task_menu(self):
+        message = SimpleNamespace(
+            chat=SimpleNamespace(id=123),
+            text="/ai",
+        )
+
+        self.assertTrue(main.handle_commands(message))
+
+        markup = main.bot.messages[-1][2]["reply_markup"]
+        callbacks = [
+            button.callback_data
+            for row in markup.keyboard
+            for button in row
+        ]
+        self.assertEqual(
+            callbacks,
+            ["ai:books", "ai:recommend", "ai:study", "ai:back"],
+        )
+
+    @patch("main.list_available_books", return_value=(
+        [{"id": "book_a", "name": "Kitob.pdf", "source": "local"}],
+        None,
+    ))
+    def test_ai_book_selection_starts_question_session(self, list_books_mock):
+        callback = SimpleNamespace(
+            id="ai_book",
+            data="aib:l:book_a",
+            message=SimpleNamespace(
+                chat=SimpleNamespace(id=123, type="private"),
+            ),
+        )
+
+        main.handle_ai_callback(callback)
+
+        self.assertEqual(
+            main.ai_sessions[123],
+            {
+                "mode": "book_qa",
+                "book": {"id": "book_a", "name": "Kitob.pdf", "source": "local"},
+                "lang": "uz",
+            },
+        )
+        self.assertIn("Kitob.pdf", main.bot.messages[-1][1])
+        list_books_mock.assert_called_once()
+
+    @patch("main._consume_ai_rate_limit", return_value=True)
+    @patch("main.list_available_books", return_value=([], None))
+    @patch("main.generate_ai_answer", return_value="Tayyor javob.")
+    def test_ai_text_query_replies_with_gemini_answer(
+        self,
+        generate_mock,
+        list_books_mock,
+        rate_limit_mock,
+    ):
+        main.ai_sessions[123] = {"mode": "study", "lang": "uz"}
+        message = SimpleNamespace(
+            chat=SimpleNamespace(id=123, type="private"),
+            from_user=SimpleNamespace(id=456),
+            text="7-sinf biologiya mavzusi",
+        )
+
+        main.handle_messages(message)
+
+        self.assertEqual(main.bot.messages[-1][1], "Tayyor javob.")
+        generate_mock.assert_called_once_with(
+            "7-sinf biologiya mavzusi",
+            "study",
+            "uz",
+            [],
+            selected_book=None,
+        )
+        self.assertNotIn(123, main.ai_sessions)
+        rate_limit_mock.assert_called_once_with(456)
 
     def test_main_menu_contains_webapp_button_when_url_is_configured(self):
         with patch.object(main, "TELEGRAM_WEBAPP_URL", "https://kutibxona.example"):
@@ -290,6 +376,33 @@ class BotBookMenuTests(unittest.TestCase):
             main.handle_webapp_data(message)
 
         show_audio_mock.assert_called_once_with(123, "uz")
+
+    def test_webapp_data_sends_selected_book_to_chat(self):
+        message = SimpleNamespace(
+            chat=SimpleNamespace(id=123),
+            web_app_data=SimpleNamespace(
+                data='{"action":"download_book","source":"local","id":"book_a"}',
+            ),
+        )
+
+        with patch("main.send_book_to_chat") as send_book_mock:
+            main.handle_webapp_data(message)
+
+        send_book_mock.assert_called_once_with(123, "uz", "local", "book_a")
+
+    def test_webapp_data_rejects_unknown_book_source(self):
+        message = SimpleNamespace(
+            chat=SimpleNamespace(id=123),
+            web_app_data=SimpleNamespace(
+                data='{"action":"download_book","source":"unknown","id":"book_a"}',
+            ),
+        )
+
+        with patch("main.send_book_to_chat") as send_book_mock:
+            main.handle_webapp_data(message)
+
+        send_book_mock.assert_not_called()
+        self.assertIn("Kitob tanlovi noto‘g‘ri", main.bot.messages[-1][1])
 
     def test_webapp_data_rejects_unknown_section(self):
         message = SimpleNamespace(
